@@ -1,0 +1,71 @@
+{
+ "actions": [],
+ "creation": "2020-06-09 11:54:21.468274",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "datafield",
+  "item_name",
+  "list_duplicates",
+  "potential_duplicates"
+ ],
+ "fields": [
+  {
+   "fieldname": "datafield",
+   "fieldtype": "Link",
+   "label": "DataField",
+   "options": "Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "potential_duplicates",
+   "fieldtype": "Table",
+   "label": "Potential Duplicates",
+   "options": "Duplicate Checker Items",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "list_duplicates",
+   "fieldtype": "Button",
+   "label": "List Duplicates",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "links": [],
+ "modified": "2020-06-09 13:20:39.279590",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Duplicate Checker",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

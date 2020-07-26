@@ -1,0 +1,94 @@
+{
+ "creation": "2020-05-08 12:40:11.396542",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "procurement_method",
+  "source_of_funds",
+  "estimated_cost",
+  "inviteadvertise_tender",
+  "bid_opening",
+  "bid_evaluation",
+  "tender_award",
+  "notification_of_award",
+  "contract_signing",
+  "total_time_to_contract_signature",
+  "date_for_completion_of_contract"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "procurement_method",
+   "fieldtype": "Data",
+   "label": "Procurement method"
+  },
+  {
+   "fieldname": "source_of_funds",
+   "fieldtype": "Data",
+   "label": "Source of funds"
+  },
+  {
+   "fieldname": "estimated_cost",
+   "fieldtype": "Data",
+   "label": "Estimated cost"
+  },
+  {
+   "fieldname": "inviteadvertise_tender",
+   "fieldtype": "Data",
+   "label": "Invite/Advertise Tender"
+  },
+  {
+   "fieldname": "bid_opening",
+   "fieldtype": "Data",
+   "label": "Bid opening"
+  },
+  {
+   "fieldname": "bid_evaluation",
+   "fieldtype": "Data",
+   "label": "Bid evaluation"
+  },
+  {
+   "fieldname": "tender_award",
+   "fieldtype": "Data",
+   "label": "Tender Award"
+  },
+  {
+   "fieldname": "notification_of_award",
+   "fieldtype": "Data",
+   "label": "Notification of award"
+  },
+  {
+   "fieldname": "contract_signing",
+   "fieldtype": "Data",
+   "label": "Contract signing"
+  },
+  {
+   "fieldname": "total_time_to_contract_signature",
+   "fieldtype": "Data",
+   "label": "Total time to contract signature"
+  },
+  {
+   "fieldname": "date_for_completion_of_contract",
+   "fieldtype": "Data",
+   "label": "Date for completion of contract"
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-05-08 12:40:11.396542",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Item Group Default",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

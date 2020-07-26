@@ -1,0 +1,56 @@
+{
+ "creation": "2020-05-21 23:06:21.276577",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "supplier_name",
+  "item_uom",
+  "unit_price",
+  "awarded_bidder"
+ ],
+ "fields": [
+  {
+   "fieldname": "supplier_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier Name",
+   "options": "Supplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item UOM",
+   "options": "UOM",
+   "reqd": 1
+  },
+  {
+   "fieldname": "unit_price",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Unit Price",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "awarded_bidder",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Awarded bidder",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-05-22 00:47:54.274460",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Tender Quotation Award Suppliers",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

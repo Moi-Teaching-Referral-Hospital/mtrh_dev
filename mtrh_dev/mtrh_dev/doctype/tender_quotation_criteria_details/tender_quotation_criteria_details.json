@@ -1,0 +1,45 @@
+{
+ "engine": "InnoDB",
+ "creation": "2020-05-21 12:05:58.888142",
+ "sort_field": "modified",
+ "istable": 1,
+ "fields": [
+  {
+   "description": "e.g Height, Weight, Length, Speed, Brand e.t.c",
+   "label": "Attribute",
+   "in_list_view": 1,
+   "fieldname": "attribute",
+   "reqd": 1,
+   "fieldtype": "Data"
+  },
+  {
+   "default": "0",
+   "label": "Score (Percent)",
+   "in_list_view": 1,
+   "fieldname": "score",
+   "reqd": 1,
+   "fieldtype": "Float"
+  },
+  {
+   "label": "Remarks",
+   "fieldtype": "HTML Editor",
+   "fieldname": "remarks"
+  }
+ ],
+ "name": "Tender Quotation Criteria Details",
+ "quick_entry": 1,
+ "field_order": [
+  "attribute",
+  "score",
+  "remarks"
+ ],
+ "doctype": "DocType",
+ "sort_order": "DESC",
+ "module": "MTRH Dev",
+ "permissions": [],
+ "modified_by": "Administrator",
+ "track_changes": 1,
+ "editable_grid": 1,
+ "owner": "Administrator",
+ "modified": "2020-05-21 15:32:34.510149"
+}

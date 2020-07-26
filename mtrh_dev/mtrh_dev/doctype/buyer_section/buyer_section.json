@@ -1,0 +1,32 @@
+{
+ "creation": "2020-04-20 21:39:41.481835",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_group"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Item Group",
+   "options": "Item Group",
+   "search_index": 1
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-04-21 13:29:26.842913",
+ "modified_by": "salimmwaura@mtrh.go.ke",
+ "module": "MTRH Dev",
+ "name": "Buyer Section",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

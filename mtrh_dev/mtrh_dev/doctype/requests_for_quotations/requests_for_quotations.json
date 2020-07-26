@@ -1,0 +1,103 @@
+{
+ "_comments": "[]",
+ "_liked_by": "[]",
+ "creation": "2020-03-28 21:01:19.379804",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "bidder",
+  "item_name",
+  "item_price",
+  "rate_bidder",
+  "tech_specifications",
+  "chosen_supplier",
+  "brand",
+  "uom",
+  "item_code",
+  "open",
+  "quotation_number"
+ ],
+ "fields": [
+  {
+   "fieldname": "bidder",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Bidder",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_price",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item price",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Results of the evaluation process",
+   "fieldname": "rate_bidder",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "Final Score(%)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tech_specifications",
+   "fieldtype": "Read Only",
+   "in_list_view": 1,
+   "label": "Attachments"
+  },
+  {
+   "default": "0",
+   "fieldname": "chosen_supplier",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Chosen Supplier"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "label": "Brand"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Data",
+   "label": "Uom"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Data",
+   "label": "Item Code"
+  },
+  {
+   "fieldname": "open",
+   "fieldtype": "Barcode",
+   "label": "Open Status"
+  },
+  {
+   "fieldname": "quotation_number",
+   "fieldtype": "Data",
+   "label": "Quotation Number"
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-05-22 12:17:31.350756",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Requests For Quotations",
+ "owner": "elvistarus@mtrh.go.ke",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

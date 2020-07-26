@@ -1,0 +1,31 @@
+{
+ "creation": "2020-04-26 11:50:48.426174",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "material_request"
+ ],
+ "fields": [
+  {
+   "fieldname": "material_request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Material Request",
+   "options": "Material Request",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-04-26 11:59:33.561850",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "RFQ Material Requests",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

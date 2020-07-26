@@ -1,0 +1,511 @@
+{% extends "templates/web.html" %}
+{% from "mtrh_dev/templates/includes/order/order_macros.html" import item_name_and_description %}
+{% block script %}
+<script>{% include "templates/includes/mtrhdevorder.js" %}</script>
+
+<script type="text/javascript">
+frappe.ready(function() {
+  var $form = $("form[id='frmFileUp']");
+  //alert("we are here")
+
+  $form.on("change", "[type='file']", function() {
+	  var $input = $(this);
+	  var theID = $(this).data("theid");
+	  var doc_name = $(this).data("thedocname"); 
+	  var input = $input.get(1);
+	  
+	  if(input.files.length) {
+		  input.filedata = { "files_data" : [] }; //Initialize as json array.
+		  window.file_reading = true;
+		  $.each(input.files, function(key, value) {
+			  setupReader(value, input, $form, theID, doc_name);
+		  });
+		  window.file_reading = false;
+		  
+		  //change upload button properties
+		  $(".rfq-attach-" + theID).removeClass("btn-success");
+		  $(".rfq-attach-" + theID).addClass("btn-primary");
+		  $(".rfq-attach-" + theID).prop("value", "Upload");
+		  $(".rfq-attach-" + theID).prop('disabled', false);
+	  }
+	  
+  });
+
+  $("#btn_upload_invoice").click(function() {
+	  //var projname = $('#projname').val();
+	  var theID = $(this).data("theid");
+	  var doc_name = $(this).data("thedocname");
+	  //frappe.msgprint(__("This DOC: " + theID));
+	 // var filedata = $('#select_files-' + theID).prop('filedata');
+	  var filedata = $('#select_files-1').prop('filedata');
+	  frappe.msgprint(__("This DOC: " + filedata));
+	  //frappe.msgprint(__("This DOC: " + filedata));
+	  var timestamp = new Date().getUTCMilliseconds();
+
+	  frappe.call({
+		  method: "mtrh_dev.mtrh_dev.utilities.attach_file_to_doc",
+		  args: {"filedata": filedata, "doc_type": "Purchase Invoice", "doc_name": doc_name, "file_name": timestamp + ".pdf"},
+		  freeze: true,
+		  freeze_message: __("Upload files..."),
+		  callback: function(r){
+			  if(!r.exc) {
+				 // frappe.msgprint(__("Files uploaded"));
+				  $('#attach-' + theID).val("<a href='" + r.message + "'>Product File</a>").change();
+				  $(".rfq-attach-" + theID).removeClass("btn-primary");
+				  $(".rfq-attach-" + theID).addClass("btn-success");
+				  $(".rfq-attach-" + theID).prop("value", "Document Uploaded");
+				  $(".rfq-attach-" + theID).prop('disabled', true);
+			  } else {
+				  frappe.msgprint(__("Files not uploaded. <br /> " + r.exc));
+			  }
+		  }
+	  });
+  });
+});
+
+function setupReader(file, input, theform, theID, doc_name) {
+	  var name = file.name;
+	  var reader = new FileReader();  
+	  reader.onload = function(e) {
+		  input.filedata.files_data.push({
+			  "__file_attachment": 1,
+			  "filename": file.name,
+			  "dataurl": reader.result
+		  })
+	  }
+	  reader.readAsDataURL(file);
+	  //$('#select_files-' + theID).val(newFileName);
+	  //theform.append('select_files-1', file, newFileName);	  
+}
+</script>
+
+{% endblock %}
+
+{% block breadcrumbs %}
+	{% include "templates/includes/breadcrumbs.html" %}
+{% endblock %}
+
+{% block title %}{{ doc.name }}{% endblock %}
+
+{% block header %}
+	<h2 class="m-0">{{ doc.name }}
+		
+	</h2>
+{% endblock %}
+
+{% block header_actions %}
+
+<div class="dropdown">
+	<button class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+		<span>{{ _('Actions') }}</span>
+		<b class="caret"></b>
+	</button>
+	<ul class="dropdown-menu dropdown-menu-right" role="menu">
+		{% if doc.doctype == 'Purchase Invoice' %}
+		<a class="dropdown-item" href='/printview?doctype={{ doc.doctype}}&name={{ doc.name }}&format={{ print_format }}'
+			target="_blank" rel="noopener noreferrer">
+			{{ _("Print Invoice") }}
+		</a>
+		{% endif %}
+		
+	</ul>
+</div>
+	
+	
+	
+{% endblock %}
+
+{% block page_content %}
+
+<div class="row transaction-subheading" border ="1px">
+
+<div class="input-group mb-3">
+	<div class="col-3">
+		<span class="indicator {{ doc.indicator_color or ("blue" if doc.docstatus==1 else "darkgrey") }}">
+			{{ _("Status: ") }}{{ _(doc.get('indicator_title')) or _(doc.status) or _("Submitted") }} <div> {{ _("Issued: ") }} {{ frappe.utils.formatdate(doc.transaction_date, 'medium') }}</div>
+		</span>
+		
+	</div>
+	<div class="col-3 text-muted text-right small">
+		
+		{% if doc.valid_till %}
+		<p>
+		{{ _("Valid Till") }}: {{ frappe.utils.formatdate(doc.valid_till, 'medium') }}
+		</p>
+		{% endif %}
+		
+		{% if doc.schedule_date %}
+			{% if frappe.utils.time_diff_in_seconds(frappe.utils.now(), doc.schedule_date) <= 0 %}
+				<label class="btn btn-success ">{{ _("Valid Till: ")}} {{frappe.utils.formatdate(doc.schedule_date, 'medium')}}</label>
+			{% else %}
+				<label class="btn btn-danger ">{{ _("Expired: ") }} {{frappe.utils.formatdate(doc.schedule_date, 'medium')}}</label>
+			{% endif %}
+		{% endif %}
+	</div>
+	{% if doc.schedule_date %}
+		{% if frappe.utils.time_diff_in_seconds(frappe.utils.now(), doc.schedule_date) <= 0 %}
+			
+			  <input type="text" class="form-control supplier-dnote" id="deliverynumber" name="deliverynumber" placeholder = "Enter Delivery Number" value="" aria-label="Your delivery number" aria-describedby="basic-addon2">
+			  <div >
+				<button class="btn btn-primary btn-gen" type="button">{{ _("Generate Delivery Note") }}</button>
+			  </div>
+			</div>
+		{% endif %}
+	{% endif %}
+	
+</div>
+
+<p class="small my-3">
+	{%- set party_name = doc.supplier_name if doc.doctype in ['Supplier Quotation', 'Purchase Invoice', 'Purchase Order'] else doc.customer_name %}
+	<b>{{ party_name }}</b>
+
+	{% if doc.contact_display and doc.contact_display != party_name %}
+		<br>
+		{{ doc.contact_display }}
+	{% endif %}
+</p>
+
+{% if doc._header %}
+{{ doc._header }}
+{% endif %}
+
+<div class="order-container">
+<!-- FOR GENERATION OF PURCHASE ORDER -->
+	{% if doc.doctype == 'Purchase Order' %}
+	<div>
+			<button class="btn btn-warning btn-invoice" type="button">{{ _("Make Purchase Invoice") }}</button>
+		</div>
+		<!-- items -->
+		<div class="order-item-table">
+			<hr>
+			<div class="row order-items order-item-header text-muted">			
+				<div class="col-sm-3 col-xs-3 h6 text-uppercase">
+					{{ _("Item") }}
+				</div>
+				<div class="col-sm-3 col-xs-3 text-right h6 text-uppercase">
+					{{ _("Quantity Ordered") }}
+				</div>
+				<div class="col-sm-3 col-xs-3 text-right h6 text-uppercase">
+					{{ _("Quantity to Supply") }}
+				</div>				
+				<div class="col-sm-3 col-xs-3 text-right h6 text-uppercase">
+					{{ _("Rate") }}
+				</div>
+				
+			</div>
+			<hr>
+			{% for d in doc.items %}
+		<div id="order-items">
+			<div class="row order-items" data-idx="{{ d.idx }}">			
+				<div class="col-sm-3 col-3">
+					{{ item_name_and_description(d) }}					
+					<input  type="hidden" id="itemcode" name="itemcode" value="{{d.item_code}}" class="form-control text-right order-it" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+				</div>
+				<div class="col-sm-3 col-xs-3 text-right order-qty">				 
+					<input readonly type="text" class="form-control text-right order-qty" style="margin-top: 5px;display: inline-block"
+					value = "{{ d.get_formatted('qty') }}"
+					data-idx="{{ d.idx }}">
+					{% if d.delivered_qty is defined and d.delivered_qty != None %}
+					<p class="text-muted small" >{{ _("Delivered") }}&nbsp;{{ d.delivered_qty }}</p>
+					{% endif %}
+				</div>			
+				<div class="col-sm-3 col-xs-3 text-right">
+					<input  type="text" id="tosupply" name="tosupply" value="" class="form-control text-right order-supply" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+				</div>						
+				<div class="col-sm-3 col-xs-3 text-right orderrate">
+					<input readonly type="text" class="form-control text-right orderrate" style="margin-top: 5px;display: inline-block"
+					value = "{{ d.rate}}"	data-idx="{{ d.idx }}">														
+					<span class="tax-grand-total">0.0</span>				
+				</div>
+				
+				
+				
+			</div>
+		</div>
+			{% endfor %}
+		</div>
+	
+	
+	<!-- FOR GENERATION OF PURCHASE INVOICE -->
+	{% elif doc.doctype == 'Purchase Invoice' %}
+		
+		<div class="order-item-table">
+			<hr>
+			<div class="row orderr-items order-item-header text-muted">
+				<div class="col-sm-3 col-xs-3 h6 text-uppercase">					
+				<label for="select_files">Upload Invoice:</label>
+				</div>			
+				<div class="col-sm-3 col-xs-3 h6 text-uppercase">
+					<form id="frmFileUp">
+					<input class="btn btn-primary" type="file" data-theid="1" data-thedocname="ACC-PINV-2020-00022"  id="select_files-1" multiple>
+					</form>
+				</div>
+				<div class="col-sm-3 col-xs-2 text-right h6 text-uppercase">
+					<button class="btn btn-primary rfq-attach-1" data-idx="1" id="btn_upload_invoice" data-theid="1" data-thedocname="ACC-PINV-2020-00022" >Upload</button>
+			<input hidden id="attach-1" type="text" class="form-control text-right rfq-attachments" style="margin-top: 5px;display: inline-block"
+				value = "1" 
+				data-idx="1">					 
+				</div>	
+				
+				<div class="col-sm-3 col-xs-2 text-right h6 text-uppercase">
+				<button class="btn btn-success btn-invoice" type="button">{{ _("Edit Purchase Invoice") }}</button>
+				</div>
+				
+			</div>
+		
+			<hr>
+			<div class="row order-items order-item-header text-muted">			
+				<div class="col-sm-2 col-xs-2 h6 text-uppercase">
+					{{ _("Item") }}
+				</div>
+				<div class="col-sm-2 col-xs-2 text-right h6 text-uppercase">
+					{{ _("Qty Accepted") }}
+				</div>
+				<div class="col-sm-2 col-xs-2 text-right h6 text-uppercase">
+					{{ _("Qty to Invoice") }}
+				</div>
+				<div class="col-sm-2 col-xs-2 text-right h6 text-uppercase">
+					{{ _("Rejected Qty") }}
+				</div>
+				<div class="col-sm-2 col-xs-2 text-right h6 text-uppercase">
+					{{ _("QTY TO WAIVE/DEBIT NOTE") }}
+				</div>				
+				<div class="col-sm-2 col-xs-2 text-right h6 text-uppercase">
+					{{ _("Rate") }}
+				</div>
+				
+			</div>
+			<hr>
+			{% for d in doc.items %}
+				<div id="order-items">
+					<div class="row order-items" data-idx="{{ d.idx }}">			
+						<div class="col-sm-2 col-2">
+							{{ item_name_and_description(d) }}					
+							<input  type="hidden" id="itemcode" name="itemcode" value="{{d.item_code}}" class="form-control text-right order-it" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+						</div>
+						<div class="col-sm-2 col-xs-1 text-right order-qty">				 
+							<input readonly type="text" class="form-control text-right order-qty" style="margin-top: 5px;display: inline-block"
+							value = "{{ d.get_formatted('qty') }}"
+							data-idx="{{ d.idx }}">
+							{% if d.qty is defined and d.qty != None %}
+							<p class="text-muted small" >{{ _("Accepted") }}&nbsp;{{ d.qty }}</p>
+							{% endif %}
+						</div>			
+						<div class="col-sm-2 col-xs-2 text-right">
+							<input  type="text" id="toinvoice" name="tosupply" value="" class="form-control text-right order-invoice" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+						</div>
+						<div class="col-sm-2 col-xs-2 text-right">
+							<input  type="text" readonly="readonly" id="rejectedqty" name="rejectedqty" value="{{d.rejected_qty}}" class="form-control text-right order-rejectedqty" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+						</div>		
+						<div class="col-sm-2 col-xs-2 text-right">
+							<input  type="text" id="towaive" name="tosupply" value="" class="form-control text-right order-waive" data-idx="{{ d.idx }}"  style="margin-top: 3px;display: inline-block">
+						</div>			
+						<div class="col-sm-2 col-xs-2 text-right orderrate">
+							<input readonly type="text" class="form-control text-right orderrate" style="margin-top: 5px;display: inline-block"
+							value = "{{ d.rate}}"	data-idx="{{ d.idx }}">														
+							<span class="tax-grand-total">0.0</span>						
+							
+						</div>					
+						
+					</div>
+
+					<!--start-->
+
+					
+
+					<!--end-->
+				</div>				
+			</div>
+
+			{% endfor %}
+
+			
+		
+		
+	</div>
+
+		</div>
+	
+	
+	
+	<!-- FOR SUPPLIER QUOTATION -->
+	{% else %}
+	</div>
+	</div>
+		<div class="order-item-table">
+		<hr>
+			<div class="row order-items order-item-header text-muted">
+				<div class="col-sm-6 col-xs-6 col-6 h6 text-uppercase">
+					{{ _("Item") }}
+				</div>
+				<div class="col-sm-3 col-xs-3 text-right h6 text-uppercase">
+					{{ _("Quantity") }}
+				</div>
+				<div class="col-sm-3 col-xs-3 text-right h6 text-uppercase">
+					{{ _("Total Amount") }}
+				</div>
+			</div>
+			{% for d in doc.items %}
+			<div id="order-items">
+				<div class="row order-items" data-idx="{{ d.idx }}">
+					<div class="col-sm-6 col-xs-6 col-6">
+						{{ item_name_and_description(d) }}
+					</div>
+					<div class="col-sm-3 col-xs-3 text-right">
+						{{ d.qty }}
+						{% if d.delivered_qty is defined and d.delivered_qty != None %}
+						<p class="text-muted small">{{ _("Delivered") }}&nbsp;{{ d.delivered_qty }}</p>
+						{% endif %}
+					</div>
+					<div class="col-sm-3 col-xs-3 text-right">
+						{{ d.get_formatted("amount")	 }}
+						<p class="text-muted small">{{ _("Rate:") }}&nbsp;{{ d.get_formatted("rate") }}</p>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+	{% endif %}
+	
+	<!-- taxes -->
+	<div class="order-taxes d-flex justify-content-end">
+		<table>
+			{% include "erpnext/templates/includes/order/order_taxes.html" %}
+		</table>
+	</div>
+</div>
+
+{% if enabled_checkout and ((doc.doctype=="Sales Order" and doc.per_billed <= 0)
+	or (doc.doctype=="Sales Invoice" and doc.outstanding_amount > 0)) %}
+
+<div class="panel panel-default">
+	<div class="panel-heading">
+		<div class="row">
+			<div class="form-column col-sm-6 address-title">
+				<strong>Payment</strong>
+			</div>
+		</div>
+	</div>
+	<div class="panel-collapse">
+		<div class="panel-body text-muted small">
+			<div class="row">
+				<div class="form-column col-sm-6">
+					{% if available_loyalty_points %}
+					<div class="form-group">
+						<div class="h6">Enter Loyalty Points</div>
+						<div class="control-input-wrapper">
+							<div class="control-input">
+								<input class="form-control" type="number" min="0" max="{{ available_loyalty_points }}" id="loyalty-point-to-redeem">
+							</div>
+							<p class="help-box small text-muted d-none d-sm-block"> Available Points: {{ available_loyalty_points }} </p>
+						</div>
+					</div>
+					{% endif %}
+				</div>
+
+				<div class="form-column col-sm-6">
+					<div id="loyalty-points-status" style="text-align: right"></div>
+					<div class="page-header-actions-block" data-html-block="header-actions">
+						<p>
+							<a href="/api/method/erpnext.accounts.doctype.payment_request.payment_request.make_payment_request?dn={{ doc.name }}&dt={{ doc.doctype }}&submit_doc=1&order_type=Shopping Cart"
+								class="btn btn-primary btn-sm" id="pay-for-order">{{ _("Pay") }} {{ doc.get_formatted("grand_total") }} </a>
+						</p>
+					</div>
+				</div>
+
+			</div>
+
+		</div>
+	</div>
+</div>
+{% endif %}
+
+
+{% if attachments %}
+<div class="order-item-table">
+	<div class="row order-items order-item-header text-muted">
+		<div class="col-sm-12 h6 text-uppercase">
+			{{ _("Attachments") }}
+		</div>
+	</div>
+	<div class="row order-items">
+		<div class="col-sm-12">
+			{% for attachment in attachments %}
+			<p class="small">
+				<a href="{{ attachment.file_url }}" target="blank"> {{ attachment.file_name }} </a>
+			</p>
+			{% endfor %}
+		</div>
+	</div>
+</div>
+{% endif %}
+</div>
+{% if doc.terms %}
+<div class="terms-and-condition text-muted small">
+	<hr><p>{{ doc.terms }}</p>
+</div>
+{% endif %}
+
+<div class="row mt-5">
+			<div class="col-12">
+				{% if doc.purchasereceipt_links %}
+				<h2 ">{{ _("Your Submitted Delivery Notes: ") }}</h2>
+					<hr>
+					<div class="row order-items order-item-header text-muted">			
+						<div class="col-sm-2 col-xs-2 h6 ">
+							{{ _("Date Submitted") }}
+						</div>
+						<div class="col-sm-3 col-xs-3 h6">
+							{{ _("DN Number") }}
+						</div>
+						<div class="col-sm-2 col-xs-2 h6 ">
+							{{ _("Status") }}
+						</div>
+						<div class="col-sm-2 col-xs-2 text-right h6 ">
+							{{ _("Quantity") }}
+						</div>
+						<div class="col-sm-2 col-xs-2 text-right h6">
+							{{ _("Value") }}
+						</div>
+						<div class="col-sm-1 col-xs-2 text-right h6">
+							{{ _("Rejected Quantity") }}
+						</div>
+						
+					</div>
+					
+					<div class="result">
+						{% for d in doc.purchasereceipt_links %}
+							<div class="web-list-item transaction-list-item supplier-quotations" idx="{{d.name}}">
+								<div class="row">
+									<div class="col-sm-2">
+										<span class="small darkgrey">{{d.creation}}</span>
+									</div>
+									<div class="col-sm-3">
+										<span class="small darkgrey"> <div>My Ref: {{d.supplier_delivery_note}} </div><div>Internal: {{d.name}} </div></span>
+									</div>
+									<div class="col-sm-2">
+										<span class="small darkgrey">{{d.workflow_state}}</span>
+									</div>
+									<div class="col-sm-2 text-right h6 ">
+										<span class="small darkgrey">{{d.total_qty}}</span>
+									</div>
+									<div class="col-sm-2 text-right h6 ">
+										<span class="small darkgrey">{{d.net_total}}</span>
+									</div>
+									<div class="col-sm-1 text-right h6">
+										<span class="small darkgrey">{{d.quantity}}</span>
+									</div>
+								</div>
+								<!-- <a class="transaction-item-link" href="/supplier-quotations/{{doc.rate}}">Link</a> -->
+							</div>
+						{% endfor %}
+					</div>
+				{% endif %}
+			</div>
+		</div>
+
+
+{% endblock %}
+
+
+

@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "autoname": "field:department_name",
+ "creation": "2020-03-19 15:52:39.874354",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "department_name",
+  "item_section",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "department_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department Name",
+   "options": "Department",
+   "show_days": 1,
+   "show_seconds": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "item_section",
+   "fieldtype": "Table",
+   "ignore_user_permissions": 1,
+   "in_preview": 1,
+   "label": "Item Section",
+   "options": "Buyer Section",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "label": "status",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "links": [],
+ "modified": "2020-06-17 19:15:12.758482",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Department Item Allocation",
+ "owner": "elvistarus@mtrh.go.ke",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -1,0 +1,31 @@
+{
+ "custom_fields": [],
+ "custom_perms": [],
+ "doctype": "RFQ Material Requests",
+ "property_setters": [
+  {
+   "_assign": null,
+   "_comments": null,
+   "_liked_by": null,
+   "_user_tags": null,
+   "creation": "2020-05-27 11:11:53.847100",
+   "default_value": null,
+   "doc_type": "RFQ Material Requests",
+   "docstatus": 0,
+   "doctype_or_field": "DocType",
+   "field_name": null,
+   "idx": 0,
+   "modified": "2020-05-27 11:11:53.847100",
+   "modified_by": "Administrator",
+   "name": "RFQ Material Requests-search_fields",
+   "owner": "Administrator",
+   "parent": null,
+   "parentfield": null,
+   "parenttype": null,
+   "property": "search_fields",
+   "property_type": "Data",
+   "value": "material_request"
+  }
+ ],
+ "sync_on_migrate": 1
+}

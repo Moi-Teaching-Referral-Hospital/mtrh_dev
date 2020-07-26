@@ -1,0 +1,65 @@
+{
+ "allow_import": 1,
+ "autoname": "field:tender_number",
+ "creation": "2020-05-21 23:36:42.326932",
+ "description": "Manually generated and awarded tenders",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "tender_number",
+  "tender_description",
+  "is_active",
+  "comments"
+ ],
+ "fields": [
+  {
+   "default": "-",
+   "fieldname": "tender_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tender Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "tender_description",
+   "fieldtype": "Data",
+   "label": "Tender Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Text Editor",
+   "label": "Comments (Optional)"
+  }
+ ],
+ "modified": "2020-05-21 23:48:34.619229",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Tender Number",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

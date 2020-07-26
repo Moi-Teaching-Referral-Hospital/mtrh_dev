@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "creation": "2020-06-24 17:01:18.850578",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "reference",
+  "item",
+  "bidder_id",
+  "supplier_name",
+  "quality_inspection_template",
+  "results",
+  "opinion_to_award_bidders",
+  "financial_comparison_section",
+  "final_decision",
+  "technical_evaluation_opinion",
+  "complete_technical_evaluation",
+  "abort_technical_evaluation",
+  "technical_evaluation_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference",
+   "fieldtype": "Link",
+   "label": "Reference",
+   "options": "Tender Number",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "bidder_id",
+   "fieldtype": "Data",
+   "label": "Bidder ID",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "label": "Supplier Name",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "quality_inspection_template",
+   "fieldtype": "Table",
+   "label": "Quality Inspection Template",
+   "options": "Tender Quotation Evaluation Technical",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "results",
+   "fieldtype": "Table",
+   "label": "Results",
+   "options": "Tender Quotation Evaluation Technical Results",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "opinion_to_award_bidders",
+   "fieldtype": "HTML Editor",
+   "label": "Opinion to Award Bidders",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "financial_comparison_section",
+   "fieldtype": "Section Break",
+   "label": "Financial Comparison",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "final_decision",
+   "fieldtype": "Table",
+   "label": "Final Decision",
+   "options": "Tender Quotation Evaluation Decision",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "technical_evaluation_opinion",
+   "fieldtype": "HTML Editor",
+   "label": "Technical Evaluation Opinion",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "complete_technical_evaluation",
+   "fieldtype": "Button",
+   "label": "Complete Technical Evaluation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "abort_technical_evaluation",
+   "fieldtype": "Button",
+   "label": "Abort Technical Evaluation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "technical_evaluation_status",
+   "fieldtype": "Data",
+   "label": "Technical Evaluation Status",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "links": [],
+ "modified": "2020-06-24 17:01:18.850578",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Item Evaluation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

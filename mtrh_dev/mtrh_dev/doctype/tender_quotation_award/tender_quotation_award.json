@@ -1,0 +1,93 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "format:{item_code}-{reference_number}",
+ "creation": "2020-05-21 23:02:02.516768",
+ "description": "A Log of all awards",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "reference_number",
+  "suppliers",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "description": "NB: STRICTLY follow the order of award on the award document:\n1st Row = Awarded bidder;\n2nd Row = first  alternative;\n3rd Row = first alternative;\n... and so on.",
+   "fieldname": "suppliers",
+   "fieldtype": "Table",
+   "label": "Suppliers",
+   "options": "Tender Quotation Award Suppliers",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Tender Quotation Award",
+   "print_hide": 1,
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "reference_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Reference (Tender/Quotation number)",
+   "options": "Tender Number",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-06-07 13:10:17.047398",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Tender Quotation Award",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

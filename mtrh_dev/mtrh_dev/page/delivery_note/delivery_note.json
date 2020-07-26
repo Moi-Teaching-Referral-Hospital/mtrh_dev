@@ -1,0 +1,23 @@
+{
+ "content": null,
+ "creation": "2020-05-16 21:50:33.901635",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2020-05-16 21:51:35.406554",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "delivery-note",
+ "owner": "Administrator",
+ "page_name": "Delivery-Note",
+ "roles": [
+  {
+   "role": "Supplier"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Creating Delivery Note"
+}

@@ -1,0 +1,5 @@
+{
+	"mtrh_dev/js/utilities.min.js": [
+		"public/js/utilities.js"
+	]
+}

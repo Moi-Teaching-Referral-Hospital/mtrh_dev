@@ -1,0 +1,96 @@
+{
+ "autoname": "field:rfq_no",
+ "creation": "2020-05-28 23:10:00.388005",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rfq_no",
+  "section_break55",
+  "mode_of_procurement",
+  "column_break_2",
+  "tq_title",
+  "section_break_4",
+  "load_from_existing_tenderquotation",
+  "section_break_8",
+  "details"
+ ],
+ "fields": [
+  {
+   "fieldname": "rfq_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Tender / Quotation Number",
+   "options": "Request for Quotation",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "bold": 1,
+   "default": "-",
+   "fieldname": "mode_of_procurement",
+   "fieldtype": "Data",
+   "label": "Mode of Procurement",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_4",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Enter details in terms of key/value\ne.g Attribute: Valid Certificate of Incorporation Percent: 20%\n",
+   "fieldname": "details",
+   "fieldtype": "Table",
+   "label": "Details",
+   "options": "Tender Quotation Criteria Details",
+   "reqd": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "tq_title",
+   "fieldtype": "Data",
+   "label": "Title of tender/quotation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "load_from_existing_tenderquotation",
+   "fieldtype": "Link",
+   "label": "Load from existing tender/quotation",
+   "options": "Tender Quotation Criteria"
+  },
+  {
+   "fieldname": "section_break55",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "modified": "2020-05-28 23:15:07.453503",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Tender Quotation Criteria",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

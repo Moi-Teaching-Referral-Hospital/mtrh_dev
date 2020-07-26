@@ -1,0 +1,49 @@
+{
+ "autoname": "field:distribution_name",
+ "creation": "2020-05-14 19:21:03.036265",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "distribution_name",
+  "periodic_distribution_amounts"
+ ],
+ "fields": [
+  {
+   "fieldname": "distribution_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Distribution name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "periodic_distribution_amounts",
+   "fieldtype": "Table",
+   "label": "Periodic Distribution Amounts",
+   "options": "Periodic Distribution Percentages"
+  }
+ ],
+ "modified": "2020-05-14 21:04:01.274556",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Periodic Distribution",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

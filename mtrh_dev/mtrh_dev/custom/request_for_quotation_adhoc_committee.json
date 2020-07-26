@@ -1,0 +1,31 @@
+{
+ "custom_fields": [],
+ "custom_perms": [],
+ "doctype": "Request For Quotation Adhoc Committee",
+ "property_setters": [
+  {
+   "_assign": null,
+   "_comments": null,
+   "_liked_by": null,
+   "_user_tags": null,
+   "creation": "2020-04-30 00:19:20.941567",
+   "default_value": null,
+   "doc_type": "Request For Quotation Adhoc Committee",
+   "docstatus": 0,
+   "doctype_or_field": "DocField",
+   "field_name": "user",
+   "idx": 0,
+   "modified": "2020-04-30 00:19:20.941567",
+   "modified_by": "Administrator",
+   "name": "Request For Quotation Adhoc Committee-user-ignore_user_permissions",
+   "owner": "Administrator",
+   "parent": null,
+   "parentfield": null,
+   "parenttype": null,
+   "property": "ignore_user_permissions",
+   "property_type": "Check",
+   "value": "1"
+  }
+ ],
+ "sync_on_migrate": 1
+}
