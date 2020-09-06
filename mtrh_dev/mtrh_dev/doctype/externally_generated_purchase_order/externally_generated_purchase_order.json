@@ -1,0 +1,183 @@
+{
+ "actions": [],
+ "autoname": "field:purchase_order_number",
+ "creation": "2020-07-27 21:35:56.523195",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "purchase_order_number",
+  "column_break_2",
+  "supplier",
+  "section_break_4",
+  "department",
+  "company",
+  "section_break_7",
+  "material_request",
+  "column_break_8",
+  "external_po_and_relevant_documentation",
+  "section_break_11",
+  "posting_date",
+  "column_break_12",
+  "total_order_value",
+  "section_break_final",
+  "items",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "purchase_order_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Purchase Order Number",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_4",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "material_request",
+   "fieldtype": "Data",
+   "label": "Material Request",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Posting Date",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Externally Generated Purchase Order",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Order Items",
+   "options": "Externally Generated Purchase Order Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_final",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0.0",
+   "fieldname": "total_order_value",
+   "fieldtype": "Float",
+   "label": "Total Order Value",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "external_po_and_relevant_documentation",
+   "fieldtype": "Attach",
+   "label": "External PO and relevant documentation",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_11",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-07-29 17:55:56.755753",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Externally Generated Purchase Order",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

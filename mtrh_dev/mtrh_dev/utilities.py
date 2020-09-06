@@ -16,6 +16,7 @@ from datetime import date, datetime
 from frappe.core.doctype.user_permission.user_permission import clear_user_permissions
 from frappe.core.doctype.user.user import extract_mentions
 from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification, get_title, get_title_html
+from frappe.utils.background_jobs import enqueue
 
 @frappe.whitelist()
 def attach_file_to_doc(filedata, doc_type, doc_name, file_name):
@@ -164,7 +165,8 @@ def process_workflow_log(doc, state):
 		if doc.get('doctype')=="Purchase Receipt" and state == "before_save" and get_doc_workflow_state(doc) =="Pending Inspection":
 			#function to insert into Quality Inspection
 			#frappe.msgprint("Logging: " + get_doc_workflow_state(doc))
-			create_quality_inspection(doc)
+			if is_workflow_action_already_created(doc): return
+			else:	create_quality_inspection(doc)
 def most_recent_decision(docname):
 	decision = frappe.db.sql("""SELECT decision FROM `tabApproval Log` where parent = %s ORDER BY creation DESC LIMIT 1""",(docname))
 	decision_to_return = ""
@@ -184,50 +186,71 @@ def Check_Rfq_Opinion(doc, state):
 def create_quality_inspection(doc):
 	#frappe.throw(doc.name)
 	docname=doc.name	
-	itemlist = frappe.db.get_list("Purchase Receipt Item",
-		filters={
-				"parent":docname,				
-			},
-			fields=["item_code","item_name","qty","amount"],
-			ignore_permissions = True,
-			as_list=False
-		)
-	for item in itemlist:		
-		itemcode=item.get("item_code")	
-		itemname=item.get("item_name")
-		count_inspection = frappe.db.count('Quality Inspection', {'reference_name': docname,'item_code':itemcode})
+	attachments_list =  frappe.db.get_all("File",
+								filters={
+										"attached_to_doctype": "Purchase Receipt" ,
+										"attached_to_name": docname ,					
+									},
+									fields=["file_url"],
+									ignore_permissions = True,
+									#as_list=False
+								)
+	urls =[]
+	if not attachments_list:
+		frappe.throw("There are no attachments to this Delivery, operation aborted\
+			Please use the Attachments field on the Left side of this window ")
+	else:
+		for attachment in attachments_list:
+			urls.append(attachment.get("file_url"))
+		itemlist = frappe.db.get_all("Purchase Receipt Item",
+			filters={
+					"parent":docname,				
+				},
+				fields=["item_code","item_name","qty","amount"],
+				ignore_permissions = True,
+				as_list=False
+			)
+		for item in itemlist:		
+			itemcode=item.get("item_code")	
+			itemname=item.get("item_name")
+			count_inspection = frappe.db.count('Quality Inspection', {'reference_name': docname,'item_code':itemcode})
 
-		if count_inspection > 0:
-			frappe.throw("Item {0} {1} was already forwarded for inspection  under delivery {2}".format(itemcode,itemname,docname))
-		else:		
-			qty=item.get("qty")		
-			amount= item.get("amount")		
-			template_name= frappe.db.get_value('Item', item.get("item_code"), 'quality_inspection_template')	
-			today = str(date.today())
-			user = frappe.session.user
-			doc_type = doc.get('doctype')
-			technical_user = frappe.db.get_value('Employee', doc.get('technical_evaluation_user'), 'user_id')
-			#frappe.throw(doc_type)	
-			docc = frappe.new_doc('Quality Inspection')
-			docc.update({
-				"naming_series":"MAT-QA-.YYYY.-",
-				"report_date":today,	
-				"inspection_type":"Incoming",
-				"total_sample_size":qty,
-				"sample_size":"0",
-				"status":"Draft",
-				"inspected_by": technical_user,
-				"item_code":itemcode,
-				"item_name":itemname,
-				"reference_type":doc_type,
-				"reference_name":docname,
-				"quality_inspection_template":template_name,
-				"technical_inspection": "<h2>Technical/User Inspection Report</h2>",
-				"chair_inspection_report": "<h2>Chair Inspection Committee Report</h2>"
-			})
-			docc.insert(ignore_permissions = True)
-			frappe.share.add('Quality Inspection', docc.get('name'), user = technical_user, read = 1, write = 1)
-
+			if count_inspection > 0:
+				frappe.throw("Item {0} {1} was already forwarded for inspection  under delivery {2}".format(itemcode,itemname,docname))
+			else:		
+				qty=item.get("qty")		
+				amount= item.get("amount")		
+				template_name= frappe.db.get_value('Item', item.get("item_code"), 'quality_inspection_template')	
+				today = str(date.today())
+				user = frappe.session.user
+				doc_type = doc.get('doctype')
+				technical_user = frappe.db.get_value('Employee', doc.get('technical_evaluation_user'), 'user_id')
+				#frappe.throw(doc_type)	
+				docc = frappe.new_doc('Quality Inspection')
+				docc.update({
+					"naming_series":"MAT-QA-.YYYY.-",
+					"report_date":today,	
+					"inspection_type":"Incoming",
+					"total_sample_size":qty,
+					"sample_size":qty,
+					"status":"Draft",
+					"inspected_by": technical_user,
+					"item_code":itemcode,
+					"item_name":itemname,
+					"reference_type":doc_type,
+					"reference_name":docname,
+					"quality_inspection_template":template_name,
+					"technical_inspection": "<h2>Technical/User Inspection Report</h2>",
+					"chair_inspection_report": "<h2>Chair Inspection Committee Report</h2>"
+				})
+				docc.insert(ignore_permissions = True)
+				frappe.share.add('Quality Inspection', docc.get('name'), user = technical_user, read = 1, write = 1)
+				from frappe.utils.file_manager import save_url
+				for url in urls:
+					filedict = frappe.db.get_value("File",{"attached_to_name":docname,"file_url": url}\
+						,['file_name','folder'],as_dict=1)
+					save_url(url, filedict.get("file_name"), docc.get("doctype"),\
+						docc.get("name"), filedict.get("folder"),True,None)
 def log_actions(doc, action_taken):
 	logged_in_user = frappe.session.user
 	child = frappe.new_doc("Approval Log")
@@ -387,7 +410,7 @@ def validate_budget(doc, state):
 		#==========end of expired lpos
 		
 		#3. GET SUM OF ALL APPROVED PURCHASE ORDERS:
-		total_commitments = frappe.get_list('Purchase Order Item',
+		total_commitments = frappe.get_all('Purchase Order Item',
 			filters = {
 				'department':department,
 				'expense_account':expense_account,
@@ -432,7 +455,7 @@ def forcefully_update_doc_field(doc_type, doc_name, field, data):
 # ON A NEW MESSAGE, ALERT A LOGGED IN USER.
 #====================================================================================================================================================	
 def alert_user_on_message(doc, state):
-	userlist = frappe.db.get_list("Chat Room User",
+	userlist = frappe.db.get_all("Chat Room User",
 		filters={
 				"parent": doc.get('room'),
 				"parentfield": 'users'
@@ -493,40 +516,45 @@ def alert_user_on_workflowaction(doc, state):
 	reference_name = doc.get('reference_name')
 	workflow_state = doc.get('workflow_state')
 	if(workflow_state != "Approved"):
-		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Points are awarded for actions within 30mins""").format(reference_doctype, reference_name)
+		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Check all your actions here: https://portal.mtrh.go.ke/desk#List/Workflow%20Action/List """).format(reference_doctype, reference_name)
 		send_sms_to_user(theuser, message_out)
+	return
 @frappe.whitelist()
 def return_approval_routes(department):
 	#GET LIST OF DEPARTMENT WITH THE TREE
-	department_tree = frappe.db.get_list("Department", fields=('name', 'parent_department'))
-	department_level_pointer = department
-	department_level = 0
-	hod_reports_to_ceo = False
-	hod_reports_to_sd = False
-	director_reports_to_ceo = False
-	senor_director_found = -1
-	directorate_found = -1
-	while(department_level_pointer != "All Departments"):
-		for this_department in department_tree:
-			if department_level_pointer in this_department['name']:
-				department_level += 1
-				#CHECK IF WE ARE GOING TRHOUGH A SENIOR DIRECTOR. IF NOT, THEN DIRECTOR IS REPORTING TO CEO
-				if(senor_director_found == -1):
-					senor_director_found = this_department['name'].lower().find('senior')
-				if(directorate_found == -1):
-					directorate_found = this_department['name'].lower().find('directorate')
-				if(senor_director_found > -1 and directorate_found == -1):
-					#WE HAVE GONE TRHOUGH SENIOR DIRECTOR WITHOUT A DIRECTORATE. SO THIS DEPARTMENT REPORTS TO SENIOR DIRECTOR
-					hod_reports_to_sd = True
-				department_level_pointer = this_department['parent_department']
-				break
-	if department_level == 2:
-		hod_reports_to_ceo = True
-	if(senor_director_found == -1 and directorate_found > -1):
-		director_reports_to_ceo = True
-	frappe.response['hod_reports_to_ceo'] = hod_reports_to_ceo
-	frappe.response['hod_reports_to_sd'] = hod_reports_to_sd
-	frappe.response['director_reports_to_ceo'] = director_reports_to_ceo
+	if not frappe.db.exists("Department", department) or not department:
+		frappe.response["message"]="Department {0} does not exist".format(department)
+	else:
+		department_tree = frappe.db.get_all("Department", fields=('name', 'parent_department'))
+		department_level_pointer = department
+		department_level = 0
+		hod_reports_to_ceo = False
+		hod_reports_to_sd = False
+		director_reports_to_ceo = False
+		senor_director_found = -1
+		directorate_found = -1 
+		while(department_level_pointer != "All Departments"):
+			for this_department in department_tree:
+				if department_level_pointer in this_department['name']:
+					department_level += 1
+					#CHECK IF WE ARE GOING TRHOUGH A SENIOR DIRECTOR. IF NOT, THEN DIRECTOR IS REPORTING TO CEO
+					if(senor_director_found == -1):
+						senor_director_found = this_department['name'].lower().find('senior')
+					if(directorate_found == -1):
+						directorate_found = this_department['name'].lower().find('directorate')
+					if(senor_director_found > -1 and directorate_found == -1):
+						#WE HAVE GONE TRHOUGH SENIOR DIRECTOR WITHOUT A DIRECTORATE. SO THIS DEPARTMENT REPORTS TO SENIOR DIRECTOR
+						hod_reports_to_sd = True
+					department_level_pointer = this_department['parent_department']
+					break
+		if department_level == 2:
+			hod_reports_to_ceo = True
+		if(senor_director_found == -1 and directorate_found > -1):
+			director_reports_to_ceo = True
+		frappe.response['hod_reports_to_ceo'] = hod_reports_to_ceo
+		frappe.response['hod_reports_to_sd'] = hod_reports_to_sd
+		frappe.response['director_reports_to_ceo'] = director_reports_to_ceo
+		return hod_reports_to_ceo,hod_reports_to_sd,director_reports_to_ceo
 def assign_department_permissions(doc,state):
 	userid = doc.get("user_id")
 	clear_user_permissions(userid,"Department")
@@ -548,43 +576,280 @@ def send_comment_sms(doc,state):
 			return
 
 		sender_fullname = get_fullname(frappe.session.user)
-		title = get_title(doc.reference_doctype, doc.reference_name)
+		#title = get_title(doc.reference_doctype, doc.reference_name)
 
 		recipients = [frappe.db.get_value("User", {"enabled": 1, "name": name, "user_type": "System User", "allowed_in_mentions": 1}, "email")
 			for name in mentions]
 		"""notification_message = _('''{0} mentioned you in a comment in {1} [{2}] please log in to your portal or corporate email account view and respond to the comment''')\
 			.format(sender_fullname, doc.reference_doctype, title)"""
 		data = doc.content
-		
-		content_to_send =  (data[:75] + '..') if len(data) > 75 else data
+		import re
+		nosp = re.compile('\ufeff.*\ufeff')#REMOVES SPECIAL CHARACTERS @TAGS
+		p_data = re.sub(nosp, '', data)
+		clean = re.compile('<(.*?)>') #REMOVES ALL HTML LIKE TAGS I.E <>
+		filtered_content = re.sub(clean, '', p_data)
+		content_to_send =  (filtered_content[:720] + '...') if len(filtered_content) > 720 else filtered_content
 
-		notification_message = _('''{0}:  Subject: {1} {2} {3}''')\
-			.format(sender_fullname, doc.reference_doctype, title, content_to_send)
+		notification_message = _('''{0}:  REF: [{1} - {2}]\n{3}''')\
+			.format(sender_fullname, doc.reference_doctype, doc.get("name"), content_to_send)
 		for recipient in recipients:
 			send_sms_to_user(recipient, notification_message)
-			#frappe.msgprint("Message sent to "+recipient)
+			frappe.msgprint(f"User {recipient} notified via SMS.")
 def check_purchase_receipt_before_save(doc, state):
-	supplier_delivery = doc.get("supplier_delivery_note")
-	if supplier_delivery and doc.get("items"):
-		for d in doc.get("items"):
-			count_inspection = frappe.db.count('Quality Inspection', {'reference_name': doc.get("name"),'item_code':d.get("item_code")})
-			if count_inspection and count_inspection > 0:
-				frappe.throw("Item {0} {1} was already forwarded for inspection  under delivery {2}".format(d.get("item_code"),d.get("item_name"),doc.get("name")))
-			else:
-				purchase_order = d.get("purchase_order")
-				if purchase_order:
-					purchase_order_maximum =  frappe.db.sql("""SELECT sum(coalesce(qty,0)) as qty FROM `tabPurchase Order Item` 
-						WHERE docstatus =%s and parent = %s and item_code =%s """,
-						("1", purchase_order, d.get("item_code")), as_dict=1)
-					purchase_receipts = frappe.db.sql("""SELECT sum(coalesce(received_qty,0)) as qty FROM `tabPurchase Receipt Item` 
-						WHERE  purchase_order = %s and item_code =%s """,
-						(purchase_order, d.get("item_code")), as_dict=1)
-					balance_to_receive = float(purchase_order_maximum[0].qty) - float(purchase_receipts[0].qty)
-					
-					'''Check if received qty exceeds PO balance'''
+	if is_workflow_action_already_created(doc): return
+	else:
+		supplier_delivery = doc.get("supplier_delivery_note")
+		if supplier_delivery and doc.get("items"):
+			for d in doc.get("items"):
+				count_inspection = frappe.db.count('Quality Inspection', {'reference_name': doc.get("name"),'item_code':d.get("item_code")})
+				if count_inspection and count_inspection > 0:
+					return
+					#frappe.throw("Item {0} => [{1}] was already forwarded for inspection  under delivery {2} \
+					#	count: {3}".format(d.get("item_code"),d.get("item_name"),doc.get("name"),count_inspection))
+				else:
+					purchase_order = d.get("purchase_order")
+					if purchase_order:
+						purchase_order_maximum =  frappe.db.sql("""SELECT sum(coalesce(qty,0)) as qty FROM `tabPurchase Order Item` 
+							WHERE docstatus =%s and parent = %s and item_code =%s """,
+							("1", purchase_order, d.get("item_code")), as_dict=1)
+						purchase_receipts = frappe.db.sql("""SELECT sum(coalesce(received_qty-rejected_qty,0)) as qty FROM `tabPurchase Receipt Item` 
+							WHERE  purchase_order = %s and item_code =%s and parent !=%s""",
+							(purchase_order, d.get("item_code"), doc.get("name")), as_dict=1)
+						receipts_total = 0 if not purchase_receipts[0].qty else float(purchase_receipts[0].qty)
+						balance_to_receive = float(purchase_order_maximum[0].qty) - receipts_total
+						
+						'''Check if received qty exceeds PO balance'''
 
-					if float(d.get('received_qty')) > balance_to_receive:
-						frappe.throw("You cannot receive quantities exceeding the Purchase Order Balance. Current Balance for {0} is {1}"\
-							.format(d.get("item_code"), balance_to_receive))
+						if float(d.get('received_qty')) > balance_to_receive:
+							frappe.throw("You cannot receive quantities exceeding the Purchase Order Balance. Current Balance for {0} is {1}"\
+								.format(d.get("item_code"), balance_to_receive))
+					else:
+						frappe.throw("Item {0} has not been captured in any purchase order. Please use the 'Get Items From' button".format(d.get("item_name")))
+		else :
+			frappe.throw("Please ensure you enter and attach supplier delivery, and the relevant items")
+@frappe.whitelist()
+def user_detail(user_id, field_to_return):
+	field_value = frappe.db.get_value("Employee",{'user_id':user_id},field_to_return) or ""
+	frappe.response["message"] = field_value
+	return field_value
+def sync_purchase_receipt_attachments(doc,state):
+	if doc.get("attached_to_doctype")=="Purchase Receipt":
+		related_doctypes =["Quality Inspection","Purchase Invoice"]
+		catered_for_docs = frappe.db.get_all("File",
+								filters={
+										"attached_to_doctype": ['IN',related_doctypes],
+										"file_url" : doc.get("file_url")				
+									},
+									fields=["attached_to_name"],
+									ignore_permissions = True,
+									#as_list=False
+								)
+		docs_with_file_url =[]
+		for docname in catered_for_docs:
+			docs_with_file_url.append(docname.get("attached_to_name"))
+		documents =[]
+		
+		for doctype in related_doctypes:
+			if doctype == "Quality Inspection":
+				docs = frappe.db.get_all(doctype,
+								filters={
+										"reference_name":doc.get("attached_to_name"),
+										"name":["NOT IN", docs_with_file_url]				
+									},
+									fields=["name"],
+									ignore_permissions = True,
+									#as_list=False
+								)
+						
+				for d in docs:
+					jsonobj ={}
+					jsonobj["doctype"]=doctype
+					jsonobj["docname"]=d.get("name")
+					documents.append(jsonobj)
+				
+					#documents.append({'doctype':doctype,'docname':d.get("name")})
+			elif doctype == "Purchase Invoice":
+				docs = frappe.db.get_all("Purchase Invoice Item",
+								filters={
+										"purchase_receipt":doc.get("attached_to_name"),
+										"parent":["NOT IN", docs_with_file_url]				
+									},
+									fields=["parent"],
+									group_by='parent',
+									ignore_permissions = True,
+								#	as_list=False
+								)
+				for d in docs:
+					jsonobj ={}
+					jsonobj["doctype"]=doctype
+					jsonobj["docname"]=d.get("parent")
+					documents.append(jsonobj)
+					#documents.append({'doctype':doctype,'docname':d.get("parent")})
+		
+		for this_document in documents:
+			frappe.msgprint("Updating {0} - {1}".format(this_document.get('doctype'),this_document.get('docname')))
+			document = frappe.copy_doc(doc)
+			document.attached_to_doctype = this_document.get('doctype')
+			document.attached_to_name = this_document.get('docname')
+			document.flags.ignore_permissions = True
+			document.run_method("set_missing_values")
+			document.insert()
+		return documents, docs
+def update_pinv_attachments_before_save(doc , state):
+	purchase_receipt = doc.get("items")[0].purchase_receipt
+	if purchase_receipt:
+		attachments_list =  frappe.db.get_all("File",
+								filters={
+										"attached_to_doctype": "Purchase Receipt" ,
+										"attached_to_name": purchase_receipt ,					
+									},
+									fields=["file_url"],
+									ignore_permissions = True,
+									#as_list=False
+								)
+		urls =[]
+		for attachment in attachments_list:
+			urls.append(attachment.get("file_url"))
+		from frappe.utils.file_manager import save_url
+		for url in urls:
+			filedict = frappe.db.get_value("File",{"attached_to_name":purchase_receipt,"file_url": url}\
+				,['file_name','folder'],as_dict=1)
+			save_url(url, filedict.get("file_name"), doc.get("doctype"),\
+				doc.get("name"), filedict.get("folder"),True,None)
+@frappe.whitelist()
+def return_budget_dict(dimension,dimension_name,account):
+	from frappe.desk.query_report import run
+	report_name ="Vote Balance Report"
+	filters ={
+		"from_fiscal_year":frappe.defaults.get_user_default("fiscal_year"),
+		"to_fiscal_year":frappe.defaults.get_user_default("fiscal_year"),
+		"period":"Quarterly",
+		"company":frappe.defaults.get_user_default("Company"),
+		"budget_against":dimension,#ths
+		"budget_against_filter":[dimension_name]
+		}
+	pl = run(report_name, filters)
+	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
+	from datetime import datetime
+	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
+	this_month = datetime.today().month
+	month_diff = this_month - year_start_month
+	if ((month_diff) <0): month_diff = month_diff * -1
+	#FOR THE RESPECTIVE QUARTERS, DATA IS need[0] - | 2, 3, 4, 5 | 6, 7, 8, 9 | 10, 11, 12, 13| 14, 15, 16, 17| THEN TOTAL 18, 19, 20, 21
+	quarter_budget, quarter_actual, quarter_commit, quarter_balance = 2, 3, 4, 5
+	if month_diff < 3 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 2, 3, 4, 5
+	elif month_diff < 6 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 6, 7, 8, 9
+	elif month_diff < 9 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 10, 11, 12, 13
 	else :
-		frappe.throw("Please ensure you enter and attach supplier delivery, and the relevant items")
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 14, 15, 16, 17
+	data_to_return = {}
+	if need and need[0]:
+		single_row = need[0]
+		data_to_return['q_budget'] = single_row[quarter_budget]
+		data_to_return['q_actual'] = single_row[quarter_actual]
+		data_to_return['q_commit'] = single_row[quarter_commit]
+		data_to_return['q_balance'] = single_row[quarter_balance]
+		data_to_return['t_budget'] = single_row[18]
+		data_to_return['t_actual'] = single_row[19]
+		data_to_return['t_commit'] = single_row[20]
+		data_to_return['t_balance'] = single_row[21]
+	return data_to_return
+
+@frappe.whitelist()
+def get_votehead_balance(document_type, document_name):
+	doc = frappe.get_doc(document_type, document_name)
+	doc.flags.ignore_permissions = True
+	if doc.get("doctype") == "Purchase Order":
+		department = doc.get("items")[0].department
+		account = doc.get("items")[0].expense_account
+		amount = doc.get("grand_total")
+		vote = return_budget_dict("Department", department, account)
+		frappe.response["vote"] = vote
+		#CALCULATE AMOUNT FOR ALL PURCHASE ORDERS CREATED AFTER THIS ONE. SO WE CAN REMOVE THEM FROM TOTOL COMMITMENT
+		total_amount_older_pos = frappe.db.get_all('Purchase Order Item', 
+			filters={
+				'creation': [">", doc.get("creation")],
+				'expense_account': account,
+				'department': department
+			},
+			fields="sum(`tabPurchase Order Item`.amount) as total", ignore_permissions=True)[0].total or 0.0
+		#BUDGET BALANCES
+		quarter_budget, annual_budget = frappe.format(vote.get("q_budget") or 0.0, 'Currency'), frappe.format(vote.get("t_budget") or 0.0, 'Currency')
+
+		real_quarter_commitment = vote.get("q_balance") or 0 + total_amount_older_pos + amount
+		real_annual_commitment = vote.get("t_balance") or 0 + total_amount_older_pos + amount
+		
+		
+		#FORMAT THE VOTE BALANCE STATEMENT
+		vote_statement = "<b>Vote Balance - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
+		vote_statement += "<tr><td><b>Item</b></td><td>Quarter</td><td>Annual</td></tr>"
+		vote_statement += "<tr><td><b>Allocation</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_budget, annual_budget)
+		vote_statement += "<tr><td><b>Balance Before</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment, 'Currency'), frappe.format(real_annual_commitment, 'Currency'))
+		vote_statement += "<tr><td><b>This Commitment</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(amount, 'Currency'), frappe.format(amount, 'Currency'))
+		vote_statement += "<tr><td><b>Balance After</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment - amount, 'Currency'), frappe.format(real_annual_commitment - amount, 'Currency'))
+		vote_statement += "</table>"
+		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
+		doc.set("vote_balance", vote_statement)
+		doc.notify_update()
+		return vote_statement
+
+def daily_pending_work_reminder():
+	#GET UNIQUE LIST OF USERS WITH PENDING WORK ON WORKFLOW ACTION TABLE.
+	user_pending_counts = frappe.db.get_all('Workflow Action',
+		filters = {
+			'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled']],#Approved
+			'status': ['not like', '%Completed%']
+		},
+		fields=['count(name) as count', 'user'],
+		group_by='user'
+	)
+
+	if user_pending_counts and user_pending_counts[0]:
+		for user in user_pending_counts:
+			user_pending_works = frappe.db.get_all('Workflow Action',
+				filters = {
+					'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled']],
+					'status': ['not like', '%Completed%'],
+					'user': user.get("user")
+				},
+				fields=['reference_name', 'reference_doctype', 'workflow_state', 'creation']
+			)
+			no_of_documents = user.get("count")
+			user_email = user.get("user")
+			email_message = f"Dear Sir/Madam,<br/>There are {no_of_documents} items which are pending in your in-tray in the ERP. It is advised that prompt action be taken on the documents to improve efficieny. The list of items is shown below. <br/>"
+			email_message += f"<b>Pending Items for - {user_email}: </b><hr><table border='1' width='100%' >"
+			email_message += "<tr><td><b>Document Type</b></td><td>Document</td><td>Current State</td><td align='right'>Action Delay</td></tr>"
+			
+			date_format = "%m/%d/%Y"
+			today_date = datetime.today() #.strftime(date_format)
+			for document in user_pending_works:
+				reference_name = document.get("reference_name")
+				reference_doctype = document.get("reference_doctype")
+				workflow_state = document.get("workflow_state")
+				creation = document.get("creation")
+				creation_date =  creation #.strftime(date_format)
+				delta = today_date - creation_date
+				delay_days = delta.days
+				delay_time_narrative = ""
+				if(delay_days == 0):
+					delay_hours = int(delta.seconds/3600)
+					delay_time_narrative = f"{delay_hours} hours"
+				else:
+					delay_time_narrative = f"{delay_days} days"
+				email_message += f"<tr><td>{reference_doctype}</td><td>{reference_name}</td><td>{workflow_state}</td><td align='right'>{delay_time_narrative}</td></tr>"
+			email_message += "</table><br/><hr>Your prompt action will alleviate more delays! Login and take action here: https://portal.mtrh.go.ke. <hr>Thank you!"
+			formatted_date = today_date.strftime(date_format)
+			subject = f"ERP Intray - {formatted_date}"
+			send_notifications(user_email, email_message, subject)
+	return user_pending_counts
+
+def send_notifications(recipients, message, subject):
+	email_args = {
+		"recipients": [recipients],
+		"message": _(message),
+		"subject": subject
+	}
+	enqueue(method=frappe.sendmail, queue='short', timeout=300, **email_args)

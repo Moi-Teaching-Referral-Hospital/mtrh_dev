@@ -1,4 +1,5 @@
 {
+ "actions": [],
  "creation": "2020-04-27 13:13:54.103088",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -16,25 +17,35 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "User",
-   "options": "Employee"
+   "options": "Employee",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "user_password",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "User Password"
+   "label": "User Password",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
+   "fetch_from": "user.user_id",
    "fieldname": "user_mail",
    "fieldtype": "Data",
    "label": "User mail",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
+   "fetch_from": "user.employee_name",
    "fieldname": "employee_name",
    "fieldtype": "Data",
    "label": "Employee Name",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "allow_on_submit": 1,
@@ -42,11 +53,14 @@
    "fieldname": "logged_in",
    "fieldtype": "Check",
    "hidden": 1,
-   "label": "Logged In"
+   "label": "Logged In",
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "istable": 1,
- "modified": "2020-04-30 12:09:20.653374",
+ "links": [],
+ "modified": "2020-09-01 12:17:17.191380",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Request For Quotation Adhoc Committee",

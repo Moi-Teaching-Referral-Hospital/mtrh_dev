@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 from frappe import _
 from . import __version__ as app_version
-from frappe.core.doctype.user_permission.user_permission import clear_user_permissions
 
 app_name = "mtrh_dev"
 app_title = "MTRH Dev"
@@ -12,6 +11,11 @@ app_icon = "octicon octicon-file-directory"
 app_color = "grey"
 app_email = "erp@mtrh.go.ke"
 app_license = "MIT"
+website_context = {
+	"favicon": "/assets/mtrh_dev/images/logo.jpg",
+	"splash_image": "/assets/mtrh_dev/images/logo.jpg"
+}
+app_logo_url = '/assets/mtrh_dev/images/logo.jpg'
 
 # Includes in <head>
 # ------------------
@@ -96,7 +100,7 @@ doc_events = {
 	},
 	"Tender Quotations Evaluations":{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"before_submit":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
+		"before_submit": ["mtrh_dev.mtrh_dev.tqe_on_submit_operations.apply_tqe_operation", "mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
 		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 	},
 	"Procurement Plan":{
@@ -109,23 +113,22 @@ doc_events = {
 		"before_submit":"mtrh_dev.mtrh_dev.utilities.validate_budget",
 		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 	},
-	"Tender Quotations Evaluations":{
-		"before_submit":"mtrh_dev.mtrh_dev.tqe_on_submit_operations.apply_tqe_operation"
-	},
 	"Request for Quotation":{
 		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status","mtrh_dev.mtrh_dev.utilities.Check_Rfq_Opinion"],		
-		"on_submit":["mtrh_dev.mtrh_dev.tqe_evaluation.send_rfq_supplier_emails","mtrh_dev.mtrh_dev.tqe_evaluation.send_adhoc_members_emails"]
-				
+		"on_submit":"mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"			
 	},
 	"Tender Quotation Award":{
 		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.process_workflow_log","mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save"]
+		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt",
+		"mtrh_dev.mtrh_dev.utilities.process_workflow_log"]
 	},
 	"Quality Inspection":{
-		"before_submit":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"on_submit":["mtrh_dev.mtrh_dev.purchase_receipt_utils.update_percentage_inspected","mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"],
+		"before_save":["mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_quality_inspection_item",
+		 "mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
+		"on_submit":["mtrh_dev.mtrh_dev.purchase_receipt_utils.update_percentage_inspected",
+		"mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"],
 	},
 	"Store Allocation":{
 		"before_save":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.check_duplicate_allocation",
@@ -159,10 +162,31 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.send_comment_sms"
 	},
 	"Supplier Quotation":{
-		"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.create_tq_opening_doc"
+		"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
+		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"
+	},
+	"Tender Quotation Opening":{
+		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations"
+	},
+	"Externally Generated Purchase Order":{
+		"before_submit": "mtrh_dev.mtrh_dev.stock_utils.externally_generated_po"
+	},
+	"File":{
+		"before_save": "mtrh_dev.mtrh_dev.utilities.sync_purchase_receipt_attachments"
+	},
+	"Purchase Invoice":{
+		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", "mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po"]
+	},
+	"Payment Request":{
+		"before_save": "mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state",
+		"before_submit": "mtrh_dev.mtrh_dev.invoice_utils.finalize_invoice_on_pv_submit",
+		"on_submit": "mtrh_dev.mtrh_dev.invoice_utils.make_payment_entry_on_pv_submit"
+	},
+	"Document Email Dispatch":{
+		"after_insert":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"
+		#"before_save":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"			
 	}
-
- }
+}
 
 # Scheduled Tasks
 # ---------------
@@ -185,21 +209,27 @@ doc_events = {
 #}
 
 scheduler_events = {
-    "cron": {
-        "* * * * *": [
+	"cron": {
+		"* * * * *": [
 			"frappe.email.queue.flush",
 			"frappe.email.doctype.email_account.email_account.pull",
 			"frappe.email.doctype.email_account.email_account.notify_unreplied",
-			"frappe.monitor.flush"
-        ]
+			"frappe.monitor.flush",
+			"mtrh_dev.mtrh_dev.purchase_receipt_utils.delivery_completed_status"
+		],
+		"20 14 * * *": [
+			"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
+		]
 	},
+	"all": [
+		"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
+	],
 	"hourly": [
-		"frappe.integrations.doctype.google_drive.google_drive.daily_backup",
+		"frappe.integrations.doctype.google_drive.google_drive.daily_backup"
 	]
 }
 # Testing
 # -------
-
 # before_tests = "mtrh_dev.install.before_tests"
 
 # Overriding Methods
@@ -215,4 +245,3 @@ scheduler_events = {
 # override_doctype_dashboards = {
 # 	"Task": "mtrh_dev.task.get_dashboard_data"
 # }
-

@@ -12,7 +12,9 @@
   "item_name",
   "reference_number",
   "suppliers",
-  "amended_from"
+  "department",
+  "amended_from",
+  "re_evaluate_document"
  ],
  "fields": [
   {
@@ -64,11 +66,26 @@
    "options": "Tender Number",
    "show_days": 1,
    "show_seconds": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Consumer Department",
+   "options": "Department",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "re_evaluate_document",
+   "fieldtype": "Button",
+   "label": "Re Evaluate Document",
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-06-07 13:10:17.047398",
+ "modified": "2020-09-03 12:42:35.154521",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Award",

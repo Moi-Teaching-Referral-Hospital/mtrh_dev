@@ -1,4 +1,5 @@
 {
+ "actions": [],
  "autoname": "format:PUR-EVL-{YYYY}-{####}",
  "creation": "2020-05-22 11:58:09.716607",
  "doctype": "DocType",
@@ -29,19 +30,6 @@
   "preliminary_status",
   "forward_preliminary",
   "abort_preliminary",
-  "technical_evaluation_section",
-  "bidder_id",
-  "item",
-  "item_name",
-  "technical_criteria",
-  "save_technical_evaluation_results",
-  "qualitytechnical_evaluation_results",
-  "financial_evaluation_section",
-  "rfqbutton",
-  "bidders",
-  "status",
-  "recommendation",
-  "procurement_opinion",
   "action_log",
   "amended_from"
  ],
@@ -49,109 +37,85 @@
   {
    "fieldname": "send_email_notifications",
    "fieldtype": "Button",
-   "label": "Send Email Notifications"
+   "label": "Send Email Notifications",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "rfq_no",
    "fieldtype": "Link",
    "label": "Request for quotation Number",
-   "options": "Request for Quotation"
+   "options": "Request for Quotation",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "-",
    "fieldname": "procurement_method",
    "fieldtype": "Data",
    "label": "Procurement Method",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "section_break_4",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "preliminary_evaluation_section",
    "fieldtype": "Section Break",
-   "label": "Preliminary Evaluation"
+   "label": "Preliminary Evaluation",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "bold": 1,
    "fieldname": "bidder",
    "fieldtype": "Select",
-   "label": "Bidder"
+   "label": "Bidder",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "evaluation_criteria",
    "fieldtype": "Table",
    "label": "Evaluation Criteria",
-   "options": "Tender Quotation Evaluation Preliminary"
+   "options": "Tender Quotation Evaluation Preliminary",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "save_preliminary_results",
    "fieldtype": "Button",
-   "label": "Save Preliminary Evaluation Results"
+   "label": "Save Preliminary Evaluation Results",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "scorecard",
    "fieldtype": "Table",
    "label": "Scorecard",
-   "options": "Tender Quotation Evaluation Preliminary Results"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "technical_evaluation_section",
-   "fieldtype": "Section Break",
-   "label": "Technical Evaluation"
-  },
-  {
-   "fieldname": "rfqbutton",
-   "fieldtype": "Button",
-   "label": "Get Requests For Quotations"
-  },
-  {
-   "default": "-",
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Item Name",
-   "read_only": 1
-  },
-  {
-   "description": "Bidder quotes for this item. 0.0 = no quote.",
-   "fieldname": "bidders",
-   "fieldtype": "Table",
-   "label": "Bidders ",
-   "options": "Requests For Quotations"
-  },
-  {
-   "depends_on": "status==1",
-   "fieldname": "status",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "status"
-  },
-  {
-   "description": "Evaluation committee decision.",
-   "fieldname": "recommendation",
-   "fieldtype": "Table",
-   "label": "Recommendation/Decision",
-   "options": "Tender Quotation Evaluation Decision"
-  },
-  {
-   "description": "Procurement opinion as to the decision made in this process.",
-   "fieldname": "procurement_opinion",
-   "fieldtype": "Text Editor",
-   "label": "Procurement Opinion"
+   "options": "Tender Quotation Evaluation Preliminary Results",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "action_log",
    "fieldtype": "Table",
    "label": "Action Log",
    "options": "Approval Log",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "amended_from",
@@ -160,120 +124,116 @@
    "no_copy": 1,
    "options": "Tender Quotation Evaluation",
    "print_hide": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "bidder_id",
-   "fieldtype": "Select",
-   "label": "Bidder ID"
-  },
-  {
-   "fieldname": "item",
-   "fieldtype": "Link",
-   "label": "Item",
-   "options": "Item"
-  },
-  {
-   "fieldname": "technical_criteria",
-   "fieldtype": "Table",
-   "label": "Quality Evaluation/Technical Evaluation",
-   "options": "Tender Quotation Evaluation Technical"
-  },
-  {
-   "fieldname": "save_technical_evaluation_results",
-   "fieldtype": "Button",
-   "label": "Save Technical Evaluation Results"
-  },
-  {
-   "fieldname": "qualitytechnical_evaluation_results",
-   "fieldtype": "Table",
-   "label": "Quality/Technical Evaluation Results",
-   "options": "Tender Quotation Evaluation Technical Results"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "financial_evaluation_section",
-   "fieldtype": "Section Break",
-   "label": "Financial Evaluation"
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "forward_preliminary",
    "fieldtype": "Button",
-   "label": "Forward results for technical evaluation"
+   "label": "Forward results for technical evaluation",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "-",
    "fieldname": "preliminary_status",
    "fieldtype": "Data",
    "label": "Status",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "preliminary_report__findings",
    "fieldtype": "Text Editor",
-   "label": "Preliminary Report / Findings"
+   "label": "Preliminary Report / Findings",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "abort_preliminary",
    "fieldtype": "Button",
-   "label": "Abort Process"
+   "label": "Abort Process",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "open_tenderquotation",
    "fieldtype": "Button",
-   "label": "Open Tender/Quotation"
+   "label": "Open Tender/Quotation",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "abort_process",
    "fieldtype": "Button",
-   "label": "Abort Process"
+   "label": "Abort Process",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "opening_report",
    "fieldtype": "Text Editor",
-   "label": "Opening report"
+   "label": "Opening report",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "section_break_2",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "section_break_6",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "-",
    "fieldname": "opening_status",
    "fieldtype": "Data",
    "label": "Opening Status",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "-",
    "fieldname": "respondents",
    "fieldtype": "Data",
    "label": "Number of Respondents",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "column_break_8",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "section_break_10",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "-",
    "fieldname": "opening_time",
    "fieldtype": "Data",
    "label": "Opening time",
-   "read_only": 1
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
- "is_submittable": 1,
- "modified": "2020-05-29 22:25:03.834671",
- "modified_by": "Administrator",
+ "links": [],
+ "modified": "2020-08-24 08:46:23.823024",
+ "modified_by": "salimmwaura@mtrh.go.ke",
  "module": "MTRH Dev",
  "name": "Tender Quotation Evaluation",
  "owner": "Administrator",
@@ -292,6 +252,5 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC",
- "track_changes": 1
+ "sort_order": "DESC"
 }

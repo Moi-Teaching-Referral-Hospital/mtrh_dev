@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "creation": "2020-08-26 15:29:40.688422",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "supplier",
+  "supplier_email",
+  "message",
+  "reference_doctype",
+  "reference_name",
+  "status",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "supplier_email",
+   "fieldtype": "Data",
+   "label": "Supplier Email",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "HTML Editor",
+   "label": "Message",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Failed\nPending\nOn Hold",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Document Email Dispatch",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Document Email Dispatch",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "links": [],
+ "modified": "2020-08-28 19:21:56.495631",
+ "modified_by": "salimmwaura@mtrh.go.ke",
+ "module": "MTRH Dev",
+ "name": "Document Email Dispatch",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "supplier",
+ "track_changes": 1
+}

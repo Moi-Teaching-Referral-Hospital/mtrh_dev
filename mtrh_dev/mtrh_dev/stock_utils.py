@@ -20,6 +20,8 @@ from erpnext.stock.doctype.item.item import get_item_defaults, get_uom_conv_fact
 from erpnext.setup.doctype.item_group.item_group import get_item_group_defaults
 from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
 from erpnext.setup.doctype.brand.brand import get_brand_defaults
+from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url, get_datetime
+
 
 
 class StockUtils(Document):
@@ -87,10 +89,10 @@ def get_item_default_expense_account(item_code):
 	item_group_defaults = get_item_group_defaults(item_code, frappe.db.get_single_value("Global Defaults", "default_company"))
 	expense_account = get_asset_category_account(fieldname = "fixed_asset_account", item = item_code, company= frappe.db.get_single_value("Global Defaults", "default_company"))
 	if not expense_account:
-		expense_account = item_defaults.get("expense_account") or item_group_defaults.get("expense_account") or get_brand_defaults(item_code,frappe.db.get_single_value("Global Defaults", "default_company") )
+		expense_account = item_group_defaults.get("expense_account") or get_brand_defaults(item_code,frappe.db.get_single_value("Global Defaults", "default_company")) or item_defaults.get("expense_account")
 	frappe.response["expense_account"] = expense_account
 	frappe.response["company"]= frappe.db.get_single_value("Global Defaults", "default_company")
-	#return expense_account
+	return expense_account
 def stock_reconciliation_set_default_price(doc,state):
 	count =0
 	for item in doc.items:
@@ -175,3 +177,35 @@ def document_expiry_extension(doc,state):
 	#frappe.db.set_value(doctype,docname,datefields_to_update.get(doctype),doc.get("to_tdate"))
 	frappe.msgprint("Successfully updated {0} date for {1} - {2} from {3} to {4}".
 					format(datefields_to_update.get(doctype),doctype,docname,doc.get("from_date"),doc.get("to_this_date")))
+def externally_generated_po(doc, state):
+	
+	if doc.get("items"):
+		itemstable =   doc.get("items")
+		actual_name = doc.get("supplier")
+		try:
+			sq_doc = frappe.get_doc({
+				"doctype":"Purchase Order",
+				"naming_series": "PUR-EX-ORD-.YYYY.-",
+				"supplier_name": actual_name,
+				"conversion_rate":1,
+				"currency":frappe.defaults.get_user_default("currency"),
+				"supplier": actual_name,
+				"supplier_test":actual_name,
+				"company": frappe.defaults.get_user_default("company"),
+				"transaction_date" : doc.get("posting_date"),
+				"item_category":"",
+				"schedule_date" : add_days(nowdate(), 30),
+				"items": itemstable.copy()
+			})		
+			
+			sq_doc.flags.ignore_permissions = True
+			sq_doc.run_method("set_missing_values")
+			sq_doc.save()
+			sq_doc.submit()
+			
+			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}' WHERE parent ='{1}'""".format(doc.get("department"), sq_doc.get("name")))	
+			#frappe.db.set_value(doc.get("doctype"), doc.get("name"),"linked_po",sq_doc.get("name"))
+			doc.add_comment('Comment', text="Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
+			frappe.msgprint("Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
+		except Exception as e:
+			frappe.throw("Could not complete transaction because : {0}".format(e)) 

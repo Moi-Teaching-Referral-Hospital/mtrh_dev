@@ -1,0 +1,372 @@
+{
+ "actions": [],
+ "autoname": "format:PUR-OPE-{YYYY}-{####}",
+ "creation": "2020-08-05 09:52:57.582887",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "opening_terms",
+  "section_break_2",
+  "rfq_no",
+  "column_break_2",
+  "procurement_method",
+  "section_break_6",
+  "respondents",
+  "column_break_8",
+  "opening_status",
+  "section_break_10",
+  "opening_date",
+  "column_break_12",
+  "time_of_opening",
+  "section_break_14",
+  "opening_report",
+  "section_break_16",
+  "opening_time",
+  "column_break_17",
+  "recommendation",
+  "section_break_19",
+  "open_tenderquotation",
+  "abort_process",
+  "section_break_4",
+  "invited_bidders",
+  "bids",
+  "ad_hoc_committee_members_section",
+  "adhoc_members",
+  "preliminary_evaluation_section",
+  "bidder",
+  "evaluation_criteria",
+  "save_preliminary_results",
+  "scorecard",
+  "preliminary_report__findings",
+  "preliminary_status",
+  "forward_preliminary",
+  "abort_preliminary",
+  "action_log",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "rfq_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Request for quotation Number",
+   "read_only": 1,
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "procurement_method",
+   "fieldtype": "Select",
+   "label": "Procurement Method",
+   "options": "-\nRequest for Quotation\nOpen Tender\nClosed Tender",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_6",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "respondents",
+   "fieldtype": "Data",
+   "label": "Number of Respondents",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "opening_status",
+   "fieldtype": "Data",
+   "label": "Opening Status",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_10",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "opening_report",
+   "fieldtype": "Text Editor",
+   "label": "Opening report",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "opening_time",
+   "fieldtype": "Data",
+   "label": "Time of Posting",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "open_tenderquotation",
+   "fieldtype": "Button",
+   "hidden": 1,
+   "label": "Open Tender/Quotation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "abort_process",
+   "fieldtype": "Button",
+   "hidden": 1,
+   "label": "Abort Process",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_4",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "preliminary_evaluation_section",
+   "fieldtype": "Section Break",
+   "label": "Preliminary Evaluation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "bidder",
+   "fieldtype": "Select",
+   "label": "Bidder",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "evaluation_criteria",
+   "fieldtype": "Table",
+   "label": "Evaluation Criteria",
+   "options": "Tender Quotation Evaluation Preliminary",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "save_preliminary_results",
+   "fieldtype": "Button",
+   "label": "Save Preliminary Evaluation Results",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "scorecard",
+   "fieldtype": "Table",
+   "label": "Scorecard",
+   "options": "Tender Quotation Evaluation Preliminary Results",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "preliminary_report__findings",
+   "fieldtype": "Text Editor",
+   "label": "Preliminary Report / Findings",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "-",
+   "fieldname": "preliminary_status",
+   "fieldtype": "Data",
+   "label": "Status",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "forward_preliminary",
+   "fieldtype": "Button",
+   "label": "Forward results for technical evaluation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "abort_preliminary",
+   "fieldtype": "Button",
+   "label": "Abort Process",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "action_log",
+   "fieldtype": "Table",
+   "label": "Action Log",
+   "options": "Approval Log",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Tender Quotation Evaluation",
+   "print_hide": 1,
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Tender Quotation Evaluation",
+   "print_hide": 1,
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "opening_terms",
+   "fieldtype": "HTML",
+   "label": "Terms",
+   "options": "<h1>INSTRUCTIONS ON FILLING THIS FORM</h1><p>1. Ensure that both opening minutes and/or opinion for Preliminary evaluation are at least 300 characters long or 2 paragraphs.</p><p>2. Select appropriate <b>Recommendation</b>based on responsiveness of quotations as per PPADA (2015) i.e.</p>\n<p><b><u>Proceed with Evaluation</u> means RFQ is Responsive</b> while <b><u>any other option</u></b> means request for quotation is <b>Unresponsive</b></p>",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "opening_date",
+   "fieldtype": "Date",
+   "label": "Opening Date",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "time_of_opening",
+   "fieldtype": "Time",
+   "label": "Time of Opening",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_14",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_17",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "Proceed With Evaluation\nRetender Entire Process\nTerminate Procurement Cycle",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_19",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "section_break_16",
+   "fieldtype": "Section Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "bids",
+   "fieldtype": "Table",
+   "label": "Bids",
+   "options": "Tender Quotation Opening Bids",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "invited_bidders",
+   "fieldtype": "Table",
+   "label": "Invited bidders",
+   "options": "Tender Quotation Invited Suppliers",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "ad_hoc_committee_members_section",
+   "fieldtype": "Section Break",
+   "label": "Ad Hoc Committee Members",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "adhoc_members",
+   "fieldtype": "Table",
+   "label": "Ad Hoc Committe Member List",
+   "options": "Request For Quotation Adhoc Committee",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-08-24 15:32:57.926461",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Tender Quotation Opening",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

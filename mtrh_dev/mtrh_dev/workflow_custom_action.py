@@ -49,6 +49,7 @@ def apply_custom_action(comment_type,comment_email,reference_doctype,reference_n
 	doc.reference_name = reference_name
 	doc.insert()
 	frappe.response["message"]=doc
+	return
 def update_material_request_item_status(doc, state):
 	doctype = doc.get('doctype')
 	items = doc.items
@@ -65,12 +66,18 @@ def update_material_request_item_status(doc, state):
 				'parent': ["IN", mreq_arr], 
 				'item_code': ["IN", items_arrs] 
 			},
-			fields=['name'],
+			fields=['name','item_code','parent'],
 			#as_list=True
 		)
+		from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state
 		for cdname in docnames:
 			#frappe.msgprint("Item set as attended to: "+str(cdname.name))
-			frappe.db.set_value('Material Request Item', cdname.name, 'attended_to', "1")
+			if get_doc_workflow_state(doc) in ["Re-Routed", "Rejected"]:
+				frappe.db.set_value('Material Request Item', cdname.name, 'attended_to', "0")
+				if get_doc_workflow_state(doc) =="Re-Routed":
+					auto_generate_purchase_order_by_material_request_shorthand(cdname.get("parent"))
+			else:
+				frappe.db.set_value('Material Request Item', cdname.name, 'attended_to', "1")
 		for mr in material_requests:	
 			count_attended_to = frappe.db.sql("""SELECT count(attended_to) as attended_count FROM `tabMaterial Request Item` WHERE parent = %s AND attended_to =1 """,(mr.material_request), as_dict=1)
 			count_all_items = frappe.db.sql("""SELECT count(*) as all_count FROM `tabMaterial Request Item` WHERE parent = %s""",(mr.material_request), as_dict=1)
@@ -88,13 +95,45 @@ def update_material_request_item_status(doc, state):
 			count_attended_to = count_attended_to + 1
 	
 		count_all_items = frappe.db.sql("""SELECT count(*) as all_count FROM `tabMaterial Request Item` WHERE parent = %s""",(material_request), as_dict=1)
-		per_attended_to = float(count_attended_to) * 100/ float(count_all_items[0].all_count)
+		count_all = 1 if float(count_all_items[0].all_count)  == 0 else float(count_all_items[0].all_count)
+		per_attended_to = float(count_attended_to) * 100/ float(count_all)
+		
 		frappe.db.set_value('Material Request', material_request, 'per_attended', float(per_attended_to))
 @frappe.whitelist()		
 def auto_generate_purchase_order_by_material_request_shorthand(docname):	
 	doc = frappe.get_doc("Material Request", docname)
 	frappe.response["id"]=docname
 	auto_generate_purchase_order_by_material_request(doc,"Submitted")
+def process_material_request(doc, state):
+	'''
+	-This is version 2 of [def auto_generate_purchase_order_by_material_request(doc,state):]
+	-It compresses the code in an effective and less complex function
+	-Removes unneccessary loops
+	-Is more modular
+	'''
+	all_items = [x.get("item_code") for x in doc.get("items") if x.get("attended_to")=="0"]
+	
+	if doc.get("material_request_type") == "Purchase":
+		awarded_items_query =""
+		unawarded_items_query=""
+		awarded_items, unawarded_items = frappe.db.sql(awarded_items_query, as_dict=True),\
+			frappe.db.sql(unawarded_items_query, as_dict=True)
+		raise_po(doc,awarded_items)
+
+		raise_rfq(doc, unawarded_items)
+	else:
+		raise_stock_entry(doc, all_items)
+
+	set_attended_to(doc, all_items)	
+	return
+def raise_po(doc, items):
+	pass
+def raise_rfq(doc, items):
+	pass
+def raise_stock_entry(doc, items):
+	pass
+def set_attended_to(doc, items):
+	pass
 @frappe.whitelist()		
 def auto_generate_purchase_order_by_material_request(doc,state):	
 	#doc = json.loads(doc)
@@ -139,12 +178,13 @@ def auto_generate_purchase_order_by_material_request(doc,state):
 											fields=["supplier_name"],
 											ignore_permissions = True,
 											as_list=False
-										)
-
+										) or [{"supplier_name":"Open Tender"}]
+			
 			theprequalifiedjson ={}
 			theprequalifieddict =[]
+			
 			for supplier in prequalified_suppliers:
-				thesupplier = supplier.supplier_name
+				thesupplier = supplier.get("supplier_name")
 				contact = frappe.db.get_value("Dynamic Link", {"link_doctype":"Supplier", "link_title":thesupplier, "parenttype":"Contact"} ,"parent")
 				email = frappe.db.get_value("Contact", contact, "email_id")
 				theprequalifiedjson["supplier"] =thesupplier
@@ -161,7 +201,6 @@ def auto_generate_purchase_order_by_material_request(doc,state):
 			for itemcode in unawarded_item_list:
 				item_dict = frappe.db.get_value('Material Request Item', {"parent":material_request_number,"item_code":itemcode}, ["name","item_code", "rate", "item_name",  "description",  "item_group","brand","qty","uom", "conversion_factor", "stock_uom", "warehouse", "schedule_date", "expense_account","department"], as_dict=1)
 				frappe.response["rfqitem"]=item_dict	
-
 				try:
 					sq_doc = frappe.get_doc({
 						"doctype": "Request for Quotation",
@@ -247,6 +286,7 @@ def auto_generate_purchase_order_by_material_request(doc,state):
 						row["description"]=item_dict.item_name
 						row["rate"] = rate
 						row["warehouse"] = item_dict.warehouse
+						#row["transaction_date"] = add_days(nowdate(), 0)
 						row["schedule_date"] = add_days(nowdate(), 30)
 						#Rate we have to get the current rate
 						row["qty"]= item_dict.qty
@@ -587,7 +627,7 @@ def send_notifications(recipients, message,subject,doctype,docname):
 				"reference_name": docname,
 				}
 	#email_args.update(template_args)
-	frappe.response["response"] = email_args
+	#frappe.response["response"] = email_args
 	enqueue(method=frappe.sendmail, queue='short', timeout=300, **email_args)
 @frappe.whitelist()		
 def auto_generate_purchase_order_using_cron():

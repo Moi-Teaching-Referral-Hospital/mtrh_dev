@@ -16,7 +16,7 @@ import datetime
 from frappe.utils import cint, flt, cstr, now
 from datetime import date, datetime
 from erpnext.buying.doctype.request_for_quotation.request_for_quotation import send_supplier_emails
-
+import re
 class TQE(Document):
 	pass
 @frappe.whitelist()
@@ -347,6 +347,8 @@ def Onsubmit_Of_Purchase_Receipt(doc, state):
 			as_list=False
 		)	
 	
+	 
+
 	for specificitem in itemdetails:
 		itemcode=specificitem.get("item_code")
 		itemname=specificitem.get("item_name")
@@ -376,9 +378,61 @@ def Onsubmit_Of_Purchase_Receipt(doc, state):
 				}
 			)
 	doc.insert(ignore_permissions = True)
-def send_rfq_supplier_emails(doc, state):
-	rfq = doc.get("name")
-	send_supplier_emails(rfq)
+@frappe.whitelist()
+def stage_rfqs(userid):
+	approved_rfqs = frappe.db.get_list("Request for Quotation",
+			filters={
+				"docstatus":1,				
+			},
+			fields=["name"],
+			ignore_permissions = True,
+			as_list=False
+		)
+	docnames = [x.get("name") for x in approved_rfqs]
+	list(map(lambda x: stage_supplier_email(frappe.get_doc("Request for Quotation",x),"submitted"), docnames))
+	return
+def stage_supplier_email(doc, state):
+	suppliers = doc.get("suppliers")
+	for row in suppliers:
+		sq_doc = frappe.get_doc({
+				"doctype": "Document Email Dispatch",
+				"supplier": row.get("supplier"),
+				"supplier_email": row.get("email_id")  or get_supplier_email(row.get("supplier")),
+				"message": doc.get("message_for_supplier"),
+				"reference_doctype": doc.get("doctype"), 
+				"reference_name":doc.get("name")
+			})
+		sq_doc.flags.ignore_permissions = True
+		sq_doc.run_method("set_missing_values")
+		sq_doc.insert()
+def dispatch_staged_email(doc , state):
+	doc2send = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
+	doc.flags.ignore_permissions = True
+	doc.run_method("set_missing_values")
+
+	documenttype = doc2send.get("doctype")
+	documentname = doc2send.get("doctype")
+	supplier_email = doc.get("supplier_email")
+	regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'	
+	if supplier_email:
+		if re.search(regex, supplier_email.strip()):
+			doc.set("status", "Sent")
+			doc.save()
+			send_notifications([supplier_email.strip()], f"Please find attached {documenttype}\
+				for your reference and appropriate action.\
+					Please ignore this email if you already received this correspondence before.",\
+					f"{documenttype} - {documentname}",\
+						doc2send.get("doctype"),doc2send.get("name"))
+			#doc2send.submit()
+		else:
+			doc.set("status","Failed")
+			doc.save()
+			#frappe.throw("Sorry, the Email provided is not valid. Please retype the e-mail and save this document again")
+	return
+def get_supplier_email(supplier):
+	dynamic_link = frappe.db.get_value("Dynamic Link", {"link_name":supplier, "link_doctype":"Supplier", "parenttype":"Contact"},"parent")
+	email =frappe.db.get_value("Contact Email", {"is_primary":"1", "parenttype":"Contact", "parent":dynamic_link}, "email_id")
+	return email
 def create_grn_qualityinspectioncert_debitnote_creditnote(doc, state):
 	docname=doc.name
 	purchasereceipt_num = doc.get("reference_name")
@@ -390,7 +444,7 @@ def create_grn_qualityinspectioncert_debitnote_creditnote(doc, state):
 	purchasereceiptitemname = frappe.get_value("Purchase Receipt Item", {"item_code": itemcode, "parent":purchasereceipt_num},"name")
 	#purchasereceiptitemname = frappe.db.get_value("Purchase Receipt Item","parent":purchasereceipt_num,"name")
 	#frappe.msgprint(str(Rejectedquantity))	
-	updatepurchasereceiptitem =frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set rejected_qty=%s,qty=%s where parent=%s and item_code=%s""",(Rejectedquantity,Acceptedquantity,purchasereceipt_num,itemcode))
+	frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set rejected_qty=%s,qty=%s where parent=%s and item_code=%s""",(Rejectedquantity,Acceptedquantity,purchasereceipt_num,itemcode))
 	if Rejectedquantity > 0:
 		#frappe.msgprint("We are generating debit note now")
 		docc = frappe.new_doc('Debit Note')
@@ -400,9 +454,10 @@ def create_grn_qualityinspectioncert_debitnote_creditnote(doc, state):
 			"purchase_receipt_number":purchasereceipt_num			
 		})
 		docc.insert(ignore_permissions = True)
-		updatepurchasereceiptstatus1 =frappe.db.sql("""UPDATE `tabPurchase Receipt` set bill_date=now(),status="To Bill",docstatus=1 where name=%s""",(docname))				
-		updatepurchasereceiptitem =frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set docstatus=1 where name=%s""",(purchasereceiptitemname))
-	else:
+		#frappe.db.sql("""UPDATE `tabPurchase Receipt` set bill_date=now(),status="To Bill",docstatus=1 where name=%s""",(docname))				
+		#frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set docstatus=1 where name=%s""",(purchasereceiptitemname))
+	'''else:
 		#frappe.msgprint("We are generating grn")
 		updatepurchasereceiptstatus2 =frappe.db.sql("""UPDATE `tabPurchase Receipt` set bill_date=now(),status="To Bill",docstatus=1 where name=%s""",(docname))
 		updatepurchasereceiptitem2 =frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set docstatus=1 where name=%s""",(purchasereceiptitemname))
+	'''
