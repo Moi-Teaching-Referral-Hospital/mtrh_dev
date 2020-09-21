@@ -1,0 +1,47 @@
+{
+ "cards": [],
+ "category": "Modules",
+ "charts": [],
+ "creation": "2020-08-13 23:51:30.289718",
+ "developer_mode_only": 0,
+ "disable_user_customization": 0,
+ "docstatus": 0,
+ "doctype": "Desk Page",
+ "extends_another_page": 0,
+ "hide_custom": 0,
+ "idx": 0,
+ "is_standard": 1,
+ "label": "Action Dashboard",
+ "modified": "2020-09-21 18:43:26.193978",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Action Dashboard",
+ "owner": "Administrator",
+ "pin_to_bottom": 0,
+ "pin_to_top": 1,
+ "shortcuts": [
+  {
+   "color": "#ffd19c",
+   "format": "{} To Dos",
+   "label": "Pending Actions",
+   "link_to": "Workflow Action",
+   "stats_filter": "{\n    \"user\": [\"=\", frappe.session.user],\n    \"workflow_state\": [\"not in\", [\"Draft\", \"Approved\"]],\n    \"docstatus\": 0,\n    \"status\": [\"not in\", [\"Completed\"]]\n}",
+   "type": "DocType"
+  },
+  {
+   "color": "#9deca2",
+   "format": "{} Entries",
+   "label": "My Energy Point Log",
+   "link_to": "Energy Point Log",
+   "stats_filter": "{\n    \"user\": [\"=\", frappe.session.user]\n}",
+   "type": "DocType"
+  },
+  {
+   "label": "Your Time to Action",
+   "link_to": "Time to Action",
+   "stats_filter": "{\n    \"user\": [\"=\", frappe.session.user]\n}",
+   "type": "DocType"
+  }
+ ],
+ "shortcuts_label": "My To Do List"
+}

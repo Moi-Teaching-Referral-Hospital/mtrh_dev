@@ -183,7 +183,7 @@ def process_qi(unalerted_grns):
 					"reference_name": docname,
 					}
 		#email_args.update(template_args)
-		frappe.response["response"] = pr_doc
+		#frappe.response["response"] = pr_doc
 		enqueue(method=frappe.sendmail, queue='short', timeout=300, **email_args)
 		
 		

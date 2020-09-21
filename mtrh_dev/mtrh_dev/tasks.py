@@ -185,11 +185,11 @@ def send_rfq_supplier_emails(doc, state):
 def raise_task_materials(doc,state):
 	if doc.issue_item and doc.status =="Raised bill of materials(BOM)":
 		#proceed if there are items and status is working
+		project = doc.get("project")
 		task_number = doc.name
 		for item in doc.issue_item:
 			#raise individual material requests for each item because, besides purpose, the item_groups may be different
 			#in future the items can be grouped into group and mode_of purchase:
-			#in short I am simplifying my work for today 12/06/2020 01:28
 			#1. Check if items are in Material request
 			item_code = item.item_code
 			items = frappe.db.get_list("Material Request Item",
@@ -270,6 +270,7 @@ def raise_task_materials(doc,state):
 					rowdict["schedule_date"] = item.schedule_date
 					rowdict["expense_account"] = item.expense_account
 					rowdict["department"] = department
+					rowdict["project"] = project if project else None
 					rowdict["warehouse"] = item.warehouse
 					rowdict["stock_qty"] = item.stock_qty
 					rowdict["task_no"] = item.task_no

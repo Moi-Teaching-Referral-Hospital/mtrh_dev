@@ -118,7 +118,8 @@ def create_tqa(doc, document_type):
 				"item_code": d.get('item_code'),
 				"item_name": d.get("item_name"),
 				"reference_number": rfq_in_question,
-				"procurement_method": mode_of_purchase	
+				"procurement_method": mode_of_purchase,	
+				"is_internal": True
 			})
 			sq_doc.append('suppliers', {
 				"supplier_name": doc.get('supplier'),
@@ -290,7 +291,6 @@ def retender_quotation_process(doc):
 	'''
 	if doc.get("recommendation")=="Retender Entire Process":
 		rfq = doc.get("rfq")
-		rfq_doq = frappe.get_doc("Request for Quotation", rfq)
+		rfq_doc = frappe.get_doc("Request for Quotation", rfq)
 		items = rfq_doc.get("items")
-		material_request_in_question = rfq_doq.get("")[0].material_request 
-	
+		material_request_in_question = rfq_doc.get("")[0].material_request 

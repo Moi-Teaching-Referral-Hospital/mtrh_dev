@@ -52,38 +52,28 @@ def apply_custom_action(comment_type,comment_email,reference_doctype,reference_n
 	return
 def update_material_request_item_status(doc, state):
 	doctype = doc.get('doctype')
-	items = doc.items
+	items = doc.get("items")	
 	if(doctype=="Request for Quotation"):
-		material_requests = doc.material_requests
-		mreq_arr =[]
-		items_arrs =[]
-		for mr in material_requests:
-			mreq_arr.append(mr.material_request)
-		for item in items:
-			items_arrs.append(item.item_code)
-		docnames = frappe.db.get_list('Material Request Item',
-			filters={
-				'parent': ["IN", mreq_arr], 
-				'item_code': ["IN", items_arrs] 
-			},
-			fields=['name','item_code','parent'],
-			#as_list=True
-		)
+		#material_requests = doc.get("material_requests")
+
+		items_list, mr_list_dup =[x.get("item_code") for x in items],\
+			[x.get("material_request") for x in items]
+		mr_list= list(dict.fromkeys(mr_list_dup))
+		items_q, mrs_q =  '('+','.join("'{0}'".format(i) for i in items_list)+')', \
+			 '('+','.join("'{0}'".format(i) for i in mr_list)+')'
+			
 		from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state
-		for cdname in docnames:
-			#frappe.msgprint("Item set as attended to: "+str(cdname.name))
-			if get_doc_workflow_state(doc) in ["Re-Routed", "Rejected"]:
-				frappe.db.set_value('Material Request Item', cdname.name, 'attended_to', "0")
-				if get_doc_workflow_state(doc) =="Re-Routed":
-					auto_generate_purchase_order_by_material_request_shorthand(cdname.get("parent"))
-			else:
-				frappe.db.set_value('Material Request Item', cdname.name, 'attended_to', "1")
-		for mr in material_requests:	
-			count_attended_to = frappe.db.sql("""SELECT count(attended_to) as attended_count FROM `tabMaterial Request Item` WHERE parent = %s AND attended_to =1 """,(mr.material_request), as_dict=1)
-			count_all_items = frappe.db.sql("""SELECT count(*) as all_count FROM `tabMaterial Request Item` WHERE parent = %s""",(mr.material_request), as_dict=1)
-			per_attended_to = float(count_attended_to[0].attended_count) * 100/ float(count_all_items[0].all_count)
-			frappe.db.set_value('Material Request', mr.material_request, 'per_attended', float(per_attended_to))
 		
+		if get_doc_workflow_state(doc) =="Re-Routed":
+			frappe.db.sql(f"""UPDATE `tabMaterial Request Item` SET attended_to ='0'\
+				WHERE item_code IN {items_q} and parent IN {mrs_q}""")
+			action = list(map(lambda x: auto_generate_purchase_order_by_material_request_shorthand(x), mr_list))
+		
+		for mr in mr_list:
+			count_attended_to = frappe.db.sql("""SELECT count(attended_to) as attended_count FROM `tabMaterial Request Item` WHERE parent = %s AND attended_to =1 """,(mr), as_dict=1)
+			count_all_items = frappe.db.sql("""SELECT count(*) as all_count FROM `tabMaterial Request Item` WHERE parent = %s""",(mr), as_dict=1)
+			per_attended_to = float(count_attended_to[0].attended_count) * 100/ float(count_all_items[0].all_count)
+			frappe.db.set_value('Material Request', mr, 'per_attended', float(per_attended_to))		
 	else:
 		count_attended_to =0
 		material_request =""
@@ -99,11 +89,20 @@ def update_material_request_item_status(doc, state):
 		per_attended_to = float(count_attended_to) * 100/ float(count_all)
 		
 		frappe.db.set_value('Material Request', material_request, 'per_attended', float(per_attended_to))
+def process_pending_material_requests():
+	pending_mrs_query =f"""SELECT DISTINCT parent FROM `tabMaterial Request Item`\
+				  WHERE attended_to ='0' and docstatus ='1' """
+	pending_mrs = frappe.db.sql(pending_mrs_query, as_dict=True)
+	
+	the_documents =[frappe.get_doc("Material Request",x.get("parent")) for x in pending_mrs]
+
+	list(map(lambda x: process_material_request(x, "before_submit"), the_documents))
+	return pending_mrs
 @frappe.whitelist()		
 def auto_generate_purchase_order_by_material_request_shorthand(docname):	
 	doc = frappe.get_doc("Material Request", docname)
-	frappe.response["id"]=docname
-	auto_generate_purchase_order_by_material_request(doc,"Submitted")
+	
+	process_material_request(doc, "before_submit")
 def process_material_request(doc, state):
 	'''
 	-This is version 2 of [def auto_generate_purchase_order_by_material_request(doc,state):]
@@ -111,222 +110,276 @@ def process_material_request(doc, state):
 	-Removes unneccessary loops
 	-Is more modular
 	'''
-	all_items = [x.get("item_code") for x in doc.get("items") if x.get("attended_to")=="0"]
-	
-	if doc.get("material_request_type") == "Purchase":
-		awarded_items_query =""
-		unawarded_items_query=""
-		awarded_items, unawarded_items = frappe.db.sql(awarded_items_query, as_dict=True),\
-			frappe.db.sql(unawarded_items_query, as_dict=True)
-		raise_po(doc,awarded_items)
+	try:
+		all_items , all_items_dict = [x.get("item_code") for x in doc.get("items") if x.get("attended_to")=="0"],\
+			[x for x in doc.get("items") if x.get("attended_to")=="0"]
+		all_items_q_str = '('+','.join("'{0}'".format(i) for i in all_items)+')'
+		if doc.get("material_request_type") == "Purchase":
+			filtered_dict =[]
+			awarded_items_query =f"""SELECT DISTINCT parent FROM `tabItem Default`\
+					WHERE parent in {all_items_q_str} AND (default_supplier !="" or default_supplier IS NOT NULL) """
+			#---------------------------------------------------------------------------------------
+			######PURCHASE ORDER
+			#-----------------------------------------------------------------------------------------
+			awarded_items = frappe.db.sql(awarded_items_query, as_dict=True)
+			awarded_item_list =[]
+			if awarded_items:
+				awarded_item_list = [x.get("parent") for x in awarded_items]
+				#FURTHER FILTER THE ITEM DICT TO REMAIN WITH AWARDED ITEMS
+				filtered_dict = [x for x in all_items_dict if x.get("item_code") in awarded_item_list]
+				raise_orders(doc, filtered_dict)	
+			#-------------------------------------------------------------------------------------------
+			#####REQUEST FOR QUOTATION
+			#--------------------------------------------------------------------------------------
+			unawarded_items_list = [x for x in all_items if x not in awarded_item_list]
+			if unawarded_items_list:
+				filtered_dict = [x for x in all_items_dict if x.get("item_code") in unawarded_items_list]	
+				raise_rfq(doc, filtered_dict)
 
-		raise_rfq(doc, unawarded_items)
-	else:
-		raise_stock_entry(doc, all_items)
-
-	set_attended_to(doc, all_items)	
-	return
-def raise_po(doc, items):
-	pass
-def raise_rfq(doc, items):
-	pass
-def raise_stock_entry(doc, items):
-	pass
-def set_attended_to(doc, items):
-	pass
-@frappe.whitelist()		
-def auto_generate_purchase_order_by_material_request(doc,state):	
-	#doc = json.loads(doc)
-	#doc = frappe._dict(doc)
-	#frappe.msgprint("Processing Document"+doc.get("name"))
-	#ONLY IF THE TYPE OF MATERIAL REQUEST IS OF PURCHASE TYPE.
-	
-	material_request_number  = doc.get("name")
-
-	item_category = doc.get("item_category")
-	frappe.response["status..."]="Beginning work for "+item_category+" items"
-	if doc.get("material_request_type") == "Purchase":
-		#material_request_document = doc		
-		items = doc.get("items")
-		#We want to get the list of awarded AND unawarded items
-		awarded_item_list = []
-		unawarded_item_list =[] #For items to be floated in quotations
-		for item in items:
-			if not item.get("attended_to") =="1":
-				unawarded = frappe.db.exists({
-						"doctype":"Item Default",
-						"parent": item.get("item_code"),
-						"default_supplier": "" 
-					})
-			#Prepare a list of awarded items out of the unattended to items
-				if not unawarded:
-					awarded_item_list.append(item.get("item_code"))
-				else:
-					unawarded_item_list.append(item.get("item_code"))
-		#If we have no empty array of awarded items and unawarded items 
-		#----------------------------------------------------
-		#1. QUOTATIONS AND TENDERS
-		#----------------------------------------------------
-		if unawarded_item_list:
-			frappe.response["List of unawarded items"]=unawarded_item_list				
-			#let us get the prequalified suppliers
-			prequalified_suppliers  = frappe.db.get_list("Prequalification Supplier",
+		else:
+			#raise_stock_entry(doc, all_items)
+			return
+		set_attended_to(doc, all_items_q_str)
+	except Exception as e:
+		frappe.throw(f"Sorry an error occured because: {e}")
+def raise_orders(doc, items):
+	item_codes = (x.get("item_code") for x in items)
+	item_codes_q_str = '('+','.join("'{0}'".format(i) for i in item_codes)+')'
+	supplier_list = frappe.get_all('Item Default',
 											filters={
-												"item_group_name": ["IN", item_category],
-												"docstatus":"1"
-											},
-											fields=["supplier_name"],
-											ignore_permissions = True,
-											as_list=False
-										) or [{"supplier_name":"Open Tender"}]
-			
-			theprequalifiedjson ={}
-			theprequalifieddict =[]
-			
-			for supplier in prequalified_suppliers:
-				thesupplier = supplier.get("supplier_name")
-				contact = frappe.db.get_value("Dynamic Link", {"link_doctype":"Supplier", "link_title":thesupplier, "parenttype":"Contact"} ,"parent")
-				email = frappe.db.get_value("Contact", contact, "email_id")
-				theprequalifiedjson["supplier"] =thesupplier
-				theprequalifiedjson["supplier_name"] = thesupplier
-				theprequalifiedjson["contact"] = contact
-				theprequalifiedjson["email_id"] = email
-				#----------------------------
-				theprequalifiedjson["send_email"] = False
-				theprequalifiedjson["email_sent"] = False
-				theprequalifiedjson["no_quote"] = False
-				theprequalifiedjson["quote_status"] = "Pending"
-			theprequalifieddict.append(theprequalifiedjson)
-			frappe.response["prequalified bidders"]=theprequalifieddict				
-			for itemcode in unawarded_item_list:
-				item_dict = frappe.db.get_value('Material Request Item', {"parent":material_request_number,"item_code":itemcode}, ["name","item_code", "rate", "item_name",  "description",  "item_group","brand","qty","uom", "conversion_factor", "stock_uom", "warehouse", "schedule_date", "expense_account","department"], as_dict=1)
-				frappe.response["rfqitem"]=item_dict	
-				try:
-					sq_doc = frappe.get_doc({
-						"doctype": "Request for Quotation",
-						"suppliers": theprequalifieddict,
-						"buyer_section":item_category,
-						"transaction_date": add_days(nowdate(), 30),
-						"company": doc.get("company"),	
-						"message_for_supplier":"Please provide a quote the items attached"	,
-						"status":"Draft"			
-					})		
-					sq_doc.append('items', {
-						"item_code": item_dict.item_code,
-						"item_name": item_dict.item_name,
-						"description": item_dict.description,
-						"qty": item_dict.qty,
-						"rate": item_dict.rate,
-						#"supplier_part_no": frappe.db.get_value("Item Supplier", {'parent': item_dict.item_code, 'supplier': supplier}, "supplier_part_no"),
-						"warehouse": item_dict.warehouse or '',
-						"material_request": material_request_number,
-						#"department": item_dict.department
-					})		
-					#material_requests
-					sq_doc.append('material_requests', {
-						"material_request": material_request_number
-					})
-					frappe.response["to_save"]=sq_doc	
-					sq_doc.flags.ignore_permissions = True
-					sq_doc.run_method("set_missing_values")
-					sq_doc.save()
-					frappe.db.set_value("Material Request Item", item_dict.name, "attended_to", "1")
-					frappe.msgprint(_("Draft Quotation {0} created").format(sq_doc.name))
-					
-					#return sq_doc.name
-				except Exception as e:
-					docnames = [frappe.db.get_value('Material Request Item', {"parent":material_request_number,"item_code":itemcode}, "name")
-						for itemcode in unawarded_item_list]
-					for docname in docnames:
-						frappe.db.set_value("Material Request Item", docname, "attended_to", "0")
-					frappe.msgprint("Operation was not completed because of {0} ".format(e))
-		#-------------------------------------------------
-		#2. PURCHASE ORDER
-		#-------------------------------------------------
-		unique_supplier_list =[]
-		if awarded_item_list:  
-			#Let us now get suppliers who can supply these items and make respective orders for each
-			supplier_list = frappe.get_list('Item Default',
-											filters={
-												'parent': ["IN", awarded_item_list]
+												'parent': ["IN", item_codes]
 											},
 											fields=['default_supplier'],
 											order_by='creation desc',
 											as_list=False
 										)
-			for supplier in supplier_list:
-				#Ensures that a supplier does not get an order twice
-				if supplier.get("default_supplier") not in unique_supplier_list:
-					unique_supplier_list.append(supplier.get("default_supplier"))
-					#Work begins here, but first let us know what items out of our awarded they can supply
-					supplier_items = frappe.get_list('Item Default',
-												filters={
-													'parent': ["IN", awarded_item_list],
-													'default_supplier': supplier.get("default_supplier")
-												},
-												fields=['parent'],
-												order_by='creation desc',
-												as_list=False
-											)
-					#We have the supplier, now let us begin creating our document.
-					actual_name = supplier.get("default_supplier")
-					purchase_order_items =[]
-					row ={}
-					schedule_date = date.today()
-					# Creating rows of JSON objects representing a typical Purchase Order Item rows  we need to add to the items array
-					for supplier_item in supplier_items:
-						item = supplier_item.get("parent")
-						row["item_code"]=supplier_item.get("parent")
-						item_dict = frappe.db.get_value('Material Request Item', {"parent":material_request_number,"item_code":supplier_item.parent}, ["item_code", "rate", "item_name",  "description",  "item_group","brand","qty","uom", "conversion_factor", "stock_uom", "warehouse", "schedule_date", "expense_account","department"], as_dict=1)
-						qty = item_dict.qty
-						default_pricelist = frappe.db.get_value('Item Default', {'parent': item}, 'default_price_list')
-						rate = frappe.db.get_value('Item Price',  {'item_code': item,'price_list': default_pricelist}, 'price_list_rate') or item_dict.rate
-						amount = float(qty) * float(rate)
-						row["item_name"]=item_dict.item_name
-						row["description"]=item_dict.item_name
-						row["rate"] = rate
-						row["warehouse"] = item_dict.warehouse
-						#row["transaction_date"] = add_days(nowdate(), 0)
-						row["schedule_date"] = add_days(nowdate(), 30)
-						#Rate we have to get the current rate
-						row["qty"]= item_dict.qty
-						row["stock_uom"]=item_dict.stock_uom
-						row["uom"] =item_dict.stock_uom
-						row["brand"]=item_dict.brand
-						row["conversion_factor"]=item_dict.conversion_factor #To be revised: what if a supplier packaging changes from what we have?
-						row["material_request"] = material_request_number
-						row["amount"] = amount #calculated
-						row["net_amount"]=amount
-						row["base_rate"] = rate 
-						row["base_amount"] = amount
-						row["expense_account"] = item_dict.expense_account
-						row["department"] = item_dict.department
-						#Let's add this row to the items array
-						purchase_order_items.append(row.copy())
-					#exit loop when your'e done, execute the code below below and start all over for the next supplier
-					doc = frappe.new_doc('Purchase Order')
-					doc.update(
-						{
-							"supplier_name":actual_name,
-							"conversion_rate":1,
-							"currency":frappe.defaults.get_user_default("currency"),
-							"supplier": actual_name,
-							"supplier_test":actual_name,
-							"company": frappe.defaults.get_user_default("company"),
-							"naming_series": "PUR-ORD-.YYYY.-",
-							"transaction_date" : date.today(),
-							"item_category":item_category,
-							"schedule_date" : add_days(nowdate(), 30),
-							"items":purchase_order_items
-						}
-					)
-					doc.insert()
-			#Mark these items unattended finally
+	for supplier in supplier_list:
+		supplier_items = frappe.db.sql(f"""SELECT DISTINCT parent FROM\
+			 `tabItem Default`\
+				  WHERE default_supplier ='{supplier}' AND parent IN {item_codes_q_str}""", as_dict=True)
+		supplier_item_list = [x.get("parent") for x in supplier_items]
+		filtered_supplier_item_dict =[x for x in items if x.get("item_code") in supplier_item_list]
+		raise_order(supplier, filtered_supplier_item_dict, doc.get("item_category"), doc.get("name"))
+	def raise_order(supplier, supplier_items, item_category, material_request_number):
+		po_doc = frappe.get_doc({
+				"doctype": "Purchase Order",
+				"supplier_name":supplier,
+				"conversion_rate":1,
+				"currency":frappe.defaults.get_user_default("currency"),
+				"supplier": supplier,
+				"supplier_test":supplier,
+				"company": frappe.defaults.get_user_default("company"),
+				"naming_series": "PUR-ORD-.YYYY.-",
+				"transaction_date" : date.today(),
+				"item_category":item_category,
+				"schedule_date" : add_days(nowdate(), 30),
+			})
+		for item_dict in supplier_items:
+			item = item_dict.get("item_code")
+			qty = item_dict.qty
+			default_pricelist = frappe.db.get_value('Item Default', {'parent': item}, 'default_price_list')
+			rate = frappe.db.get_value('Item Price',  {'item_code': item,'price_list': default_pricelist},\
+				 'price_list_rate') or item_dict.get("rate")
+			amount = float(qty) * float(rate)
+			po_doc.append('items',{
+				'item_code': item,
+				'item_name' : item_dict.item_name,
+				'description': item_dict.item_name,
+				'rate' : rate,
+				'warehouse' : item_dict.warehouse,
+				'schedule_date': add_days(nowdate(), 30),
+				'qty': item_dict.qty,
+				'stock_uom' : item_dict.stock_uom,
+				'uom': item_dict.uom,
+				'brand' : item_dict.brand,
+				'conversion_factor': item_dict.conversion_factor,
+				'material_request': material_request_number,
+				'amount': amount,
+				'net_amount': amount,
+				'base_rate' : rate,
+				'base_amount' : amount,
+				'expense_account' : item_dict.account,
+				'department': item_dict.department,
+				'project': item_dict.project if item_dict.project else None
+			})
+		po_doc.flags.ignore_permissions =True
+		po_doc.run_method("set_missing_values")
+		po_doc.insert()
+	return
+def get_item_group(item):
+	return frappe.db.get_value("Item", item, 'item_group')
+def raise_rfq(doc, items):
+	item_codes = (x.get("item_code") for x in items)
+	item_codes_q_str = '('+','.join("'{0}'".format(i) for i in item_codes)+')'
+	item_category = doc.get("item_category") or get_item_group(items[0].get("item_code"))
+	#frappe.msgprint(item_category)
+	draft_rfqs_in_this_category = frappe.db.sql(f"""SELECT name FROM `tabRequest for Quotation`\
+		WHERE buyer_section='{item_category}'\
+			 AND workflow_state = 'Draft' AND mode_of_purchase IS NULL \
+				 AND name NOT IN\
+					  (SELECT parent FROM `tabRequest for Quotation Item`\
+						   WHERE docstatus="0" AND item_code IN {item_codes_q_str})\
+						   """, as_dict=True)
+	if draft_rfqs_in_this_category:#
+		documents =[frappe.get_doc("Request for Quotation", x.get("name")) for x in draft_rfqs_in_this_category]
+		#I only need one so i'll take document at 0
+		items_for_new_rfq =[]
+		items_for_existing_rfq =[]
+		rfq_doc2append = documents[0]
+		for item in items:
+			rfq_dict = None
+			rfq_dict = item
+			if rfq_dict.get("item_code") in [x.get("item_code") for x in rfq_doc2append.get("items")]:
+				items_for_new_rfq.append(rfq_dict)
+			else:
+				items_for_existing_rfq.append(rfq_dict)#[{}]
+				#append_item_to_rfq(documents[0], item)
+		if items_for_new_rfq:
+			raise_new_rfq(doc, items_for_new_rfq)#SECOND ARG IS A DICT
+		if items_for_existing_rfq:
+			doc2append = append_items_to_rfq(rfq_doc2append, items_for_existing_rfq)#SECOND ARG IS A DICT
+			doc2append.run_method("set_missing_values")
+			doc2append.save()
+	else:
+		raise_new_rfq(doc, items)
+	return
+def append_items_to_rfq(sq_doc , items):
+	material_request_number = items[0].get("parent")
+	procurement_value = 0.0
+	for item_dict in items:
+		sq_doc.append('items', {
+			"item_code": item_dict.get("item_code"),
+			"item_name": item_dict.get("item_name"),
+			"description": item_dict.get("description"),
+			"qty": item_dict.get("qty"),
+			"rate": item_dict.get("rate"),		
+			"amount": item_dict.get("amount"),		
+			"warehouse": item_dict.get("warehouse") or None,
+			"material_request": material_request_number,
+			"schedule_date": add_days(nowdate(), 30),
+			"stock_uom": item_dict.get("stock_uom"),
+			"uom": item_dict.get("uom"),
+			"conversion_factor": item_dict.get("conversion_factor")
+		})
+		#ADD UP THE TOTAL VALUE  FOR THIS RFQ.
+		procurement_value += item_dict.get("amount")
+	sq_doc['value_of_procurement'] = procurement_value
+
+	if not material_request_number in [x.get("material_request") for x in sq_doc.get("material_requests")]:
+		sq_doc.append('material_requests', {
+			"material_request": material_request_number
+		})
+	sq_doc.flags.ignore_permissions = True
+	return sq_doc
+@frappe.whitelist()
+def reroute_rfq_item(docname , item_ids):	
+	try:
+		item_ids = json.loads(item_ids)
+		#frappe.throw(item_ids)
+		doc = frappe.get_doc("Request for Quotation", docname)
+		cdata =[frappe.get_doc("Request for Quotation Item", x) for x in item_ids]
+		item_ids_str = '('+','.join("'{0}'".format(i) for i in item_ids)+')'
+		items2raise =[]
+		for data in cdata:
+			mrdata, docname =None, None
+			docname=frappe.get_value("Material Request Item",{"parent":data.get("material_request"),\
+				"item_code": data.get("item_code")}, "name")
+			mrdata = frappe.get_doc("Material Request Item", docname)
+			items2raise.append(mrdata)
+		#None, items2raise,doc.get("buyer_section"),frappe.defaults.get_user_default("Company")
+		raise_new_rfq(None, items2raise,doc.get("buyer_section"),frappe.defaults.get_user_default("Company"))
+		delete_items = f"DELETE FROM `tabRequest for Quotation Item` WHERE name IN {item_ids_str}"
+		frappe.db.sql(delete_items)
+		doc.notify_update
+		return
+	except Exception as e:
+		frappe.throw(f"Sorry and error occured because of {e}")
+def raise_new_rfq(doc, items, item_group=None, company_name=None):
+	item_category = item_group or doc.get("item_category")
+	prequalification_list = prequalified_suppliers_list(item_category)
+	#prequalification_list = list(dict.fromkeys(prequalification_list))
 	
-			#update_material_request_item_status(material_request_document, "state")
-			#============================================================================
-			#MATERIAL REQUEST FOR ISSUE AND TRANSFERS
-	elif doc.get("material_request_type") in ["Material Issue","Material Transfer"]:
+#	prequalification_list = { each['supplier'] : each for each in prequalification_list}.values()
+
+	try:
+		sq_doc = frappe.get_doc({
+			"doctype": "Request for Quotation",
+			"suppliers": prequalification_list,
+			"buyer_section":item_category,
+			"transaction_date": add_days(nowdate(), 30),
+			"company": company_name or doc.get("company"),	
+			"message_for_supplier": "Please find attached, a list of item/items for your response via a quotation. We now only accept responses to the quotation via our portal. \
+				Responses by replying via email or via paper based methods are not accepted for this quote. Please login to the portal using your credentials here: https://portal.mtrh.go.ke. Then click on 'Request for Quotations', pick this RFQ/Tender and fill in your unit price inclusive of tax.",
+			"status":"Draft"			
+		})	
+		sq_doc = append_items_to_rfq(sq_doc , items)
+
+		sq_doc.flags.ignore_permissions = True
+		sq_doc.run_method("set_missing_values")
+		sq_doc.save()
+	except Exception as e:
+		frappe.throw(f"Sorry an error occured because : {e}")	
+	return
+def prequalified_suppliers_list(item_category):
+	'''prequalified_suppliers  = frappe.db.get_list("Prequalification Supplier",
+									filters={
+										"item_group_name": ["IN", item_category],
+										"supplier_name":["!=","Open Tender"],
+										"docstatus":"1"
+									},
+									fields=["supplier_name"],
+									ignore_permissions = True,
+									as_list=False
+								) or [{"supplier_name":"Open Tender"}]'''
+
+	prequalified_suppliers_q	=	f"""SELECT DISTINCT supplier_name FROM `tabPrequalification Supplier`\
+								WHERE item_group_name = '{item_category}' AND supplier_name !='Open Tender'\
+									AND docstatus='1' """
+	prequalified_suppliers = frappe.db.sql(prequalified_suppliers_q, as_dict=True)\
+		 or [{"supplier_name":"Open Tender"}]
+	
+	theprequalifiedjson ={}
+	theprequalifieddict =[]
+	
+	for supplier in prequalified_suppliers:
+		theprequalifiedjson = {}
+		thesupplier = supplier.get("supplier_name")
+		contact = frappe.db.get_value("Dynamic Link",\
+				{"link_doctype":"Supplier", "link_title":thesupplier, "parenttype":"Contact"} ,"parent")
+		email = frappe.db.get_value("Contact", contact, "email_id")
+		theprequalifiedjson["supplier"] =thesupplier
+		theprequalifiedjson["supplier_name"] = thesupplier
+		theprequalifiedjson["contact"] = contact
+		theprequalifiedjson["email_id"] = email
+		#----------------------------
+		theprequalifiedjson["send_email"] = False
+		theprequalifiedjson["email_sent"] = False
+		theprequalifiedjson["no_quote"] = False
+		theprequalifiedjson["quote_status"] = "Pending"
+		theprequalifieddict.append(theprequalifiedjson)
+	#frappe.response["fff"]=theprequalifieddict
+	return theprequalifieddict
+def raise_stock_entry(doc, items):
+	pass
+def set_attended_to(doc, items, action=None):
+	docname = doc.get("name")
+	action_string =f" SET attended_to ='1' "
+	if action:
+		action_string = f"SET attended_to ='{action}'"
+	update_action_query = f"UPDATE `tabMaterial Request Item` {action_string}\
+		 WHERE parent = '{docname}' AND item_code IN {items};"
+	frappe.db.sql(update_action_query)
+	doc.notify_update()
+def compute_percentage_attended_to(doc):
+	pass
+@frappe.whitelist()		
+def auto_generate_purchase_order_by_material_request(doc,state):	
+	material_request_number  = doc.get("name")
+
+	item_category = doc.get("item_category")
+	frappe.response["status..."]="Beginning work for "+item_category+" items"
+	
+	if doc.get("material_request_type") in ["Material Issue","Material Transfer"]:
 		count = frappe.db.count('Stock Entry Detail', {'material_request': material_request_number})
 		if count and count > 0:
 			return
@@ -346,6 +399,7 @@ def auto_generate_purchase_order_by_material_request(doc,state):
 			frappe.response["status"] = "Creating a stock entry"
 			for item in stock_entry_items:
 				if item.get("attended_to") != "1":
+					updated_json={}
 					updated_json["item_code"]=item.get("item_code")
 					updated_json["item_name"]=item.get("item_name")
 					updated_json["department"]=item.get("deparment")
@@ -438,7 +492,6 @@ def procurement_method_on_select(material_request, supplier_name):
 		frappe.response["suppliers_for_group"] = supplier_full_set
 		frappe.response["filtered_items"] =mr_items_filtered
 		frappe.response["material_requests"] = mr_list_filtered
-
 	else:
 		frappe.response["status"] ="invalid"
 		frappe.response["docstatus"] = docstatus
@@ -782,5 +835,4 @@ def budget_balance(payload, document_date):
 		itemrow["balance_valid"] = balance_valid
 		outputArr.append(itemrow)
 	frappe.response["message"] = outputArr
-
 

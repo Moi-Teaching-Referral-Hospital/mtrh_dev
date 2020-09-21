@@ -1,7 +1,7 @@
 import frappe, json
 from frappe import _
 from frappe.utils.file_manager import check_max_file_size, get_content_hash, get_file_name, get_file_data_from_hash
-from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today
+from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today, cint
 import os, base64
 from six import text_type, string_types
 import mimetypes
@@ -85,27 +85,48 @@ def write_file(content, fname, folder=None, is_private=0):
 def create_supplier_quotation(doc):
 	if isinstance(doc, string_types):
 		doc = json.loads(doc)
-	rfq = doc.get('name')
-	try:
-		sq_doc = frappe.get_doc({
-			"doctype": "Supplier Quotation",
+	rfq = doc.get('items')[0].get("parent")
+	
+	#try:
+	#DELETE ANY PREVIOUSLY SUBMITTED QUOTATIONS FROM THE SAME SUPPLIER FOR THE SAME RFQ.
+	this_rfq_quotes_for_supplier = frappe.db.get_all('Supplier Quotation',
+		filters={
 			"supplier": doc.get('supplier'),
-			"terms": doc.get("terms"),
-			"company": doc.get("company"),
-			#ADDED REQUEST FOR QUOTATION FIELD TO ENSURE PARENT SQ IS TIED TO AN RFQ JUST AS ITS CHILD IS:
-			"request_for_quotation":rfq,
-			"currency": doc.get('currency') or get_party_account_currency('Supplier', doc.get('supplier'), doc.get('company')),
-			"buying_price_list": doc.get('buying_price_list') or frappe.db.get_value('Buying Settings', None, 'buying_price_list')
-		})
-		add_items(sq_doc, doc.get('supplier'), doc.get('items'))
-		sq_doc.flags.ignore_permissions = True
-		sq_doc.run_method("set_missing_values")
-		sq_doc.save()
-		raise_po_based_on_direct_purchase(rfq)
-		#frappe.msgprint(_("Your submission of Quotation {0} was successful. You will be alerted once it is opened and evaluated.").format(sq_doc.name))
-		return sq_doc.name
-	except Exception:
-		return None
+			"reference_procurement_id": rfq
+		},
+		fields=['name'],
+		as_list=False
+	)
+	quotes_to_delete =[frappe.get_doc("Supplier Quotation", x.get("name"))\
+		for x in this_rfq_quotes_for_supplier if this_rfq_quotes_for_supplier]
+	list(map(lambda x: x.delete(), quotes_to_delete))
+
+	#PREPARE AND INSERT NEW QUOTATION
+	sq_doc = frappe.get_doc({
+		"doctype": "Supplier Quotation",
+		"supplier": doc.get('supplier'),
+		"type" : "IsReturned Price Schedule",
+		"terms": doc.get("terms"),
+		"company": doc.get("company"),
+		"external_reference_id": rfq,
+		"reference_procurement_id": rfq,
+		#ADDED REQUEST FOR QUOTATION FIELD TO ENSURE PARENT SQ IS TIED TO AN RFQ JUST AS ITS CHILD IS:
+		"request_for_quotation":rfq,
+		"currency": doc.get('currency'), # or get_party_account_currency('Supplier', doc.get('supplier'), doc.get('company')),
+		"buying_price_list": doc.get('buying_price_list') or frappe.db.get_value('Buying Settings', None, 'buying_price_list')
+	})
+	add_items(sq_doc, doc.get('supplier'), doc.get('items'))
+	sq_doc.flags.ignore_permissions = True
+	sq_doc.run_method("set_missing_values")
+	ref = sq_doc.get("external_reference_id")
+	#return frappe.msgprint(_(f"This is to be inserted: {ref}"))
+	sq_doc.insert()
+	raise_po_based_on_direct_purchase(rfq)
+	#frappe.msgprint(_("Your submission of Quotation {0} was successful. You will be alerted once it is opened and evaluated.").format(sq_doc.name))
+	return sq_doc.name
+	#except Exception:
+	#	frappe.msgprint(_("An error occurred while trying to submit your quote: {Exception}"))
+	#	return None
 
 def add_items(sq_doc, supplier, items):
 	for data in items:
@@ -174,14 +195,29 @@ def most_recent_decision(docname):
 		decision_to_return = decision[0][0]
 	return decision_to_return	
 
-def Check_Rfq_Opinion(doc, state):	
-	if  get_doc_workflow_state(doc) =="Pending Supply Chain Management Approval":
+def clean_up_rfq(doc, state):
+	#RECALCULATE PROCUREMENT VALUE
+	doc.set("value_of_procurement", sum(item.get('amount') for item in doc.get("items")))
+	if  get_doc_workflow_state(doc) =="Pending SCM Approval":
 		#if doc.get("mode_of_purchase_opinion") is None:
 	# doc.get('doctype')=="Request for Quotation":# and state == "before_save" and get_doc_workflow_state(doc) =="Pending Contract Approval" and doc.get("mode_of_purchase_opinion")=="":
 		#num = len(doc.get("mode_of_purchase_opinion"))
+		if not doc.get("mode_of_purchase"):
+			frappe.throw("You have not picked a specific procurement method to be approved for these items.")
 		if not doc.get("mode_of_purchase_opinion"):
-		#frappe.msgprint(str(doc.get("mode_of_purchase_opinion")))
 			frappe.throw("Mode of Purchase Opinion is Mandatory")
+	if doc.get("message_for_supplier") == "Please provide a quote the items attached":
+		new_message_to_supplier = "Please find attached, a list of item/items for your response via a quotation. We now only accept responses to the quotation via our portal. \
+			Responses by replying via email or via paper based methods are NOT accepted for this quote. Please login to the portal using your credentials here: https://portal.mtrh.go.ke. Then click on 'Request for Quotations', pick this RFQ/Tender and fill in your unit price inclusive of tax."
+		doc.set("message_for_supplier", new_message_to_supplier)
+
+def reassign_ownership(doc, state):
+	if doc.get('doctype')=="Purchase Receipt" or doc.get('doctype')=="Request for Quotation":
+		old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
+		new_workflow_state = get_workflow_name(doc.get('doctype'))
+		if (old_workflow_state == "Draft") and old_workflow_state != new_workflow_state:
+			#WE ARE ABOUT TO TRANSITION THE DOCUMENT FROM DRAFT. ASSIGN OWNERSHIPT TO THIS OFFICER. 
+			doc.set("owner", frappe.session.user)
 
 def create_quality_inspection(doc):
 	#frappe.throw(doc.name)
@@ -478,7 +514,9 @@ def alert_user_on_message(doc, state):
 # RETURNS A PHONE NUMBER OF A USER WHEN THEIR USER ID/EMAIL IS PASSED.																				=
 #====================================================================================================================================================
 def get_user_phonenumber(userid):
-	the_employee_sql = _("""select cell_number from `tabEmployee` where (personal_email LIKE '{0}' or company_email LIKE '{1}')""").format(userid, userid)
+	the_employee_sql = _("""select cell_number from `tabEmployee`\
+		 where (personal_email LIKE '{0}' or company_email LIKE '{1}')""").\
+			 format(userid, userid)
 	the_employee = frappe.db.sql(the_employee_sql)
 	the_phone = ""
 	if the_employee and the_employee[0][0]:
@@ -486,13 +524,21 @@ def get_user_phonenumber(userid):
 	"""if(len(the_phone) < 11 and len(the_phone) > 0):
 		if the_phone[0] != "0":
 			the_phone = "0" + the_phone"""
+	if not the_phone:
+		fetch_contact(userid)
 	return the_phone
-
+def fetch_contact(userid):
+	sql_to_run =f"""SELECT mobile_no FROM `tabContact` WHERE mobile_no\
+		IS NOT NULL and email_id ={userid} LIMIT 1 """
+	mobile_no = frappe.db.sql(sql_to_run,as_dict=True)
+	return mobile_no[0].get("mobile_no")
 #====================================================================================================================================================
 # SEND A USER SMS GIVEN A USER ID/EMAIL		
 #====================================================================================================================================================
 @frappe.whitelist()
 def send_sms_to_user(userid, message):
+	if cint(frappe.defaults.get_defaults().get("hold_queue"))==1:
+		return
 	incoming_payload =[]
 	phone = get_user_phonenumber(userid)
 	#frappe.response["phone"] = phone
@@ -506,7 +552,7 @@ def send_sms_to_user(userid, message):
 		send_sms_alert(json.dumps(incoming_payload))
 		print(_("""User {0} has been alerted through SMS""").format(userid))
 		frappe.msgprint(_("""User {0} has been alerted through SMS""").format(userid))
-
+	return
 #====================================================================================================================================================
 # ALERT USERS ON A NEW WORKFLOW ACTION CREATED.	
 #====================================================================================================================================================
@@ -516,7 +562,7 @@ def alert_user_on_workflowaction(doc, state):
 	reference_name = doc.get('reference_name')
 	workflow_state = doc.get('workflow_state')
 	if(workflow_state != "Approved"):
-		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Check all your actions here: https://portal.mtrh.go.ke/desk#List/Workflow%20Action/List """).format(reference_doctype, reference_name)
+		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Check all your pending work here: https://bit.ly/2F8E18L""").format(reference_doctype, reference_name)
 		send_sms_to_user(theuser, message_out)
 	return
 @frappe.whitelist()
@@ -687,7 +733,7 @@ def sync_purchase_receipt_attachments(doc,state):
 					#documents.append({'doctype':doctype,'docname':d.get("parent")})
 		
 		for this_document in documents:
-			frappe.msgprint("Updating {0} - {1}".format(this_document.get('doctype'),this_document.get('docname')))
+			#frappe.msgprint("Updating {0} - {1}".format(this_document.get('doctype'),this_document.get('docname')))
 			document = frappe.copy_doc(doc)
 			document.attached_to_doctype = this_document.get('doctype')
 			document.attached_to_name = this_document.get('docname')
@@ -697,25 +743,29 @@ def sync_purchase_receipt_attachments(doc,state):
 		return documents, docs
 def update_pinv_attachments_before_save(doc , state):
 	purchase_receipt = doc.get("items")[0].purchase_receipt
+	purchase_invoice = doc.get("name")
 	if purchase_receipt:
-		attachments_list =  frappe.db.get_all("File",
-								filters={
-										"attached_to_doctype": "Purchase Receipt" ,
-										"attached_to_name": purchase_receipt ,					
-									},
-									fields=["file_url"],
-									ignore_permissions = True,
-									#as_list=False
-								)
-		urls =[]
-		for attachment in attachments_list:
-			urls.append(attachment.get("file_url"))
+		
+		attachments_list_query =f"""SELECT file_url FROM `tabFile`\
+			 WHERE attached_to_doctype='Purchase Receipt'\
+				  AND attached_to_name= '{purchase_receipt}'\
+					   AND file_url\
+						    NOT IN (SELECT file_url FROM `tabFile` WHERE attached_to_doctype ='Purchase Invoice'\
+								AND attached_to_name='{purchase_invoice}') """
+
+		attachments_list = frappe.db.sql(attachments_list_query, as_dict=True)
+		urls =[x.get("file_url") for x in attachments_list]
+		#for attachment in attachments_list:
+		#	urls.append(attachment.get("file_url"))
 		from frappe.utils.file_manager import save_url
-		for url in urls:
-			filedict = frappe.db.get_value("File",{"attached_to_name":purchase_receipt,"file_url": url}\
-				,['file_name','folder'],as_dict=1)
-			save_url(url, filedict.get("file_name"), doc.get("doctype"),\
-				doc.get("name"), filedict.get("folder"),True,None)
+		if urls:
+			for url in urls:
+				filedict = frappe.db.get_value("File",{"attached_to_name":purchase_receipt,"file_url": url}\
+					,['file_name','folder'],as_dict=1)
+
+				save_url(url, filedict.get("file_name"), doc.get("doctype"),\
+					doc.get("name"), filedict.get("folder"),True,None)
+	return	
 @frappe.whitelist()
 def return_budget_dict(dimension,dimension_name,account):
 	from frappe.desk.query_report import run
@@ -762,12 +812,17 @@ def return_budget_dict(dimension,dimension_name,account):
 def get_votehead_balance(document_type, document_name):
 	doc = frappe.get_doc(document_type, document_name)
 	doc.flags.ignore_permissions = True
+	dimension, dimension_name ="",""
 	if doc.get("doctype") == "Purchase Order":
 		department = doc.get("items")[0].department
 		account = doc.get("items")[0].expense_account
 		amount = doc.get("grand_total")
-		vote = return_budget_dict("Department", department, account)
-		frappe.response["vote"] = vote
+		dimension,dimension_name ="Department", department
+		if doc.get("items")[0].project:
+			dimension, dimension_name = None, None
+			dimension, dimension_name ="Project",doc.get("items")[0].project
+		vote = return_budget_dict(dimension, dimension_name, account)
+		
 		#CALCULATE AMOUNT FOR ALL PURCHASE ORDERS CREATED AFTER THIS ONE. SO WE CAN REMOVE THEM FROM TOTOL COMMITMENT
 		total_amount_older_pos = frappe.db.get_all('Purchase Order Item', 
 			filters={
@@ -792,10 +847,19 @@ def get_votehead_balance(document_type, document_name):
 		vote_statement += "<tr><td><b>Balance After</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment - amount, 'Currency'), frappe.format(real_annual_commitment - amount, 'Currency'))
 		vote_statement += "</table>"
 		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
-		doc.set("vote_balance", vote_statement)
-		doc.notify_update()
+		if not doc.get("vote_statement"):
+			frappe.msgprint("Votebook information rendered")
+			doc.set("vote_statement", vote_statement)
+			doc.flags.ignore_permissions = True
+			doc.save()
+			doc.notify_update()
 		return vote_statement
-
+	elif document_type=="Payment Request":
+		pass
+	elif document_type=="Material Request":
+		pass
+	else:
+		return
 def daily_pending_work_reminder():
 	#GET UNIQUE LIST OF USERS WITH PENDING WORK ON WORKFLOW ACTION TABLE.
 	user_pending_counts = frappe.db.get_all('Workflow Action',
@@ -819,7 +883,7 @@ def daily_pending_work_reminder():
 			)
 			no_of_documents = user.get("count")
 			user_email = user.get("user")
-			email_message = f"Dear Sir/Madam,<br/>There are {no_of_documents} items which are pending in your in-tray in the ERP. It is advised that prompt action be taken on the documents to improve efficieny. The list of items is shown below. <br/>"
+			email_message = f"Dear Sir/Madam,<br/>There are {no_of_documents} items which are pending in your in-tray in the ERP. It is advised that prompt action be taken on the documents to improve efficieny. The list of items is shown below. You can also find all your pending work at all times here: https://bit.ly/2F8E18L <br/>"
 			email_message += f"<b>Pending Items for - {user_email}: </b><hr><table border='1' width='100%' >"
 			email_message += "<tr><td><b>Document Type</b></td><td>Document</td><td>Current State</td><td align='right'>Action Delay</td></tr>"
 			
@@ -853,3 +917,117 @@ def send_notifications(recipients, message, subject):
 		"subject": subject
 	}
 	enqueue(method=frappe.sendmail, queue='short', timeout=300, **email_args)
+def project_budget_submit(doc , state):
+	hand_in_budget = doc.get("hand_in_budget")
+	if hand_in_budget:
+		project = doc.get("name")
+		budget_exists = frappe.db.sql(f"SELECT name, docstatus FROM `tabBudget` WHERE project ='{project}'",as_dict=True)
+		submitted_budgets =[x for x in budget_exists if x.get("docstatus")=="1"]
+		if len(submitted_budgets) > 1 :
+			frappe.throw("Sorry, this project already has an approved budget")
+			return
+		frappe.db.delete("Budget", {"project":project})
+		i_table = doc.get("procurement_plan_items")
+		budget_items =[{x.get("expense_account") : x.get("amount")}\
+			for x in i_table ]
+		#frappe.msgprint(budget_items)
+		#return budget_items
+		import collections, functools, operator 
+		reduced_budget_dict = dict(functools.reduce(operator.add, 
+			map(collections.Counter, budget_items))) 
+		tobereturned = make_budget("Project", project, reduced_budget_dict)
+		doc.flags.ignore_permissions=True
+		doc.run_method("set_missing_values")
+		doc.set("status","Pending Budget Approval")
+		doc.set("budget_submitted", True)
+		doc.set("hand_in_budget", False)
+		
+		return tobereturned
+def make_budget(dimension, dimension_name, items):
+	budget = frappe.get_doc({
+		"doctype": "Budget",
+		"budget_against" :  dimension,
+		"cost_center" : dimension_name if dimension =="Cost Center" else None,
+		"department" : dimension_name  if dimension =="Department" else None,
+		"project" : dimension_name  if dimension =="Project" else None,
+		#employee_department = frappe.db.get_value("Employee",{"user_id":frappe.session.user},"department")
+		"fiscal_year" : get_fiscal_year(today())[0],
+		"company" : frappe.defaults.get_user_default("Company"),
+		"action_if_annual_budget_exceeded" : "Stop",
+		"action_if_accumulated_monthly_budget_exceeded" : "Ignore"
+	}) 
+	for k in items:
+		budget.append("accounts", {
+			"account": k,
+			"budget_amount": items.get(k)
+		})
+	
+	budget.flags.ignore_permissions=True
+	budget.flags.ignore_links=True
+	#budget.run_method("set_missing_values")
+	budget.insert()
+	return budget
+@frappe.whitelist()
+def recall_budget(dimension, dimension_name):
+	if dimension == "Project":
+		budget_exists = frappe.db.sql(f"SELECT name, docstatus FROM `tabBudget` WHERE project ='{dimension_name}'",as_dict=True)
+		submitted_budgets =[x for x in budget_exists if x.get("docstatus")=="1"]
+		if len(submitted_budgets) > 1 :
+			frappe.throw("Sorry, the budget for this project has already been approved and cannot be recalled. Ask for cancellation to be able to amend.")
+			return
+		frappe.db.delete("Budget", {"project":dimension_name})
+		frappe.db.set_value("Project", dimension_name, "budget_submitted", False)
+		frappe.msgprint(_("The budget for the project has been recalled successfully."))
+		return
+def project_budget_approved(doc , state):
+	frappe.db.set_value("Project", doc.get("project"), "status", "Budget Approved")
+@frappe.whitelist()
+def update_sq(docname=None):
+	docname = 'PUR-SQTN-2020-00002'
+	doc = frappe.get_doc("Supplier Quotation", docname)
+
+	
+	#total_taxes_and_charges
+	frappe.db.sql(f"UPDATE `tabSupplier Quotation` SET  taxes_and_charges=0.0,\
+		total_taxes_and_charges= 0.0 WHERE name ='{docname}' ")
+
+	frappe.db.sql(f"DELETE FROM  `tabPurchase Taxes and Charges`  WHERE parent ='{docname}'")
+
+	frappe.db.sql(f"UPDATE `tabSupplier Quotation Item` SET rate = 62366.00  WHERE parent ='{docname}' ")
+
+def log_time_to_action(doc, state):
+	#VALIDATE THAT IT IS A WORKFLOW TRANSITION.
+	new_workflow_state = get_workflow_name(doc.get('doctype'))
+	if not new_workflow_state:
+		return
+	old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
+	if (old_workflow_state and new_workflow_state) and old_workflow_state != new_workflow_state:
+		#WORKFLOW STATE CHANGED. LETS PROCEED.
+		actions = frappe.db.get_all('Workflow Action',
+			filters={
+				"reference_name": doc.get('name'),
+				"workflow_state": old_workflow_state
+			},
+			fields=["name", "user", "reference_doctype", "creation"],
+			as_list=False
+		)
+		for action in actions:
+			now = datetime.now()
+			when_created = action.get("creation")
+			diff_in_seconds = int(frappe.utils.data.time_diff_in_seconds(now, when_created))
+			diff_in_hours = int(frappe.utils.data.time_diff_in_hours(now, when_created))
+			time_to_action = frappe.get_doc({
+				"doctype": "Time to Action",
+				"time_actioned" :  frappe.utils.data.now_datetime(),
+				"user" : action.get("user"),
+				"reference_name" : doc.get('name'),
+				"reference_doctype" : action.get("reference_doctype"),
+				"workflow_state" : old_workflow_state,
+				"time_to_action" : diff_in_seconds, 
+				"hours_action": diff_in_hours
+			})
+			time_to_action.flags.ignore_permissions=True
+			time_to_action.flags.ignore_links=True
+			time_to_action.insert()
+	return
+	

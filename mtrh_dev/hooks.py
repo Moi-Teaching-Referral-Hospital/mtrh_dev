@@ -16,7 +16,7 @@ website_context = {
 	"splash_image": "/assets/mtrh_dev/images/logo.jpg"
 }
 app_logo_url = '/assets/mtrh_dev/images/logo.jpg'
-
+#mtrh logo
 # Includes in <head>
 # ------------------
 
@@ -93,10 +93,22 @@ default_mail_footer = "MTRH Enterprise System"
 # Hook on document methods and events
 
 doc_events = {
+	"*": {
+		"before_update": [
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+		],
+		"before_submit": [
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+		],
+		"before_cancel": [
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+		]
+	},
 	"Material Request":{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",	
 		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log",		
-		"before_submit":["mtrh_dev.mtrh_dev.utilities.process_workflow_log","mtrh_dev.mtrh_dev.workflow_custom_action.auto_generate_purchase_order_by_material_request"]
+		"before_submit":["mtrh_dev.mtrh_dev.utilities.process_workflow_log",
+		"mtrh_dev.mtrh_dev.workflow_custom_action.auto_generate_purchase_order_by_material_request"]
 	},
 	"Tender Quotations Evaluations":{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
@@ -109,15 +121,19 @@ doc_events = {
 		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 	},
 	"Purchase Order":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.process_workflow_log","mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status"],
+		"before_save":["mtrh_dev.mtrh_dev.utilities.process_workflow_log",
+		"mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status", "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],
 		"before_submit":"mtrh_dev.mtrh_dev.utilities.validate_budget",
-		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
+		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log",
+		"on_submit": "mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"	
 	},
 	"Request for Quotation":{
-		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status","mtrh_dev.mtrh_dev.utilities.Check_Rfq_Opinion"],		
+		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status",
+		"mtrh_dev.mtrh_dev.utilities.clean_up_rfq", "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],		
 		"on_submit":"mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"			
 	},
 	"Tender Quotation Award":{
+		"before_save":"mtrh_dev.mtrh_dev.tender_quotation_utils.submit_manually_entered_tqas",
 		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
@@ -126,9 +142,10 @@ doc_events = {
 	},
 	"Quality Inspection":{
 		"before_save":["mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_quality_inspection_item",
-		 "mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
+		 			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
 		"on_submit":["mtrh_dev.mtrh_dev.purchase_receipt_utils.update_percentage_inspected",
-		"mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"],
+				"mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"],
+		"before_submit":"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 	},
 	"Store Allocation":{
 		"before_save":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.check_duplicate_allocation",
@@ -175,7 +192,8 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.sync_purchase_receipt_attachments"
 	},
 	"Purchase Invoice":{
-		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", "mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po"]
+		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", 
+		"mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po"]
 	},
 	"Payment Request":{
 		"before_save": "mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state",
@@ -183,8 +201,14 @@ doc_events = {
 		"on_submit": "mtrh_dev.mtrh_dev.invoice_utils.make_payment_entry_on_pv_submit"
 	},
 	"Document Email Dispatch":{
-		"after_insert":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"
-		#"before_save":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"			
+		"after_insert":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email",
+		"on_update":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"			
+	},
+	"Project":{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.project_budget_submit"
+	},
+	"Budget":{
+		"on_submit":"mtrh_dev.mtrh_dev.utilities.project_budget_approved"
 	}
 }
 

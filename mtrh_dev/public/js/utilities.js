@@ -47,7 +47,7 @@ function page_changed(event) {
 						transitions.forEach(d => {
 							if (frappe.user_roles.includes(d.allowed) && has_approval_access(d)) {
 								frm.page.add_action_item(__(d.action), function() {
-									if(d.action.toLowerCase().includes("approve") || d.action.toLowerCase().includes("cancel") || d.action.toLowerCase().includes("submit") || d.action.toLowerCase().includes("reject") || d.action.toLowerCase().includes("terminate") || d.action.toLowerCase().includes("recall")){
+									if(d.action.toLowerCase().includes("approve") || d.action.toLowerCase().includes("cancel") || d.action.toLowerCase().includes("submit") || d.action.toLowerCase().includes("reject") || d.action.toLowerCase().includes("terminate") || d.action.toLowerCase().includes("recall") || d.action.toLowerCase().includes("confirm") || d.action.toLowerCase().includes("send")){
 										frappe.confirm(
 											'Are you sure you want to "' + d.action + '" the document ' + frm.doc.name + '?',
 											function(){

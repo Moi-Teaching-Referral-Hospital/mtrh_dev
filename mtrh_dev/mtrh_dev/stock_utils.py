@@ -201,10 +201,11 @@ def externally_generated_po(doc, state):
 			sq_doc.flags.ignore_permissions = True
 			sq_doc.run_method("set_missing_values")
 			sq_doc.save()
-			sq_doc.submit()
 			
 			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}' WHERE parent ='{1}'""".format(doc.get("department"), sq_doc.get("name")))	
 			#frappe.db.set_value(doc.get("doctype"), doc.get("name"),"linked_po",sq_doc.get("name"))
+			
+			sq_doc.submit()
 			doc.add_comment('Comment', text="Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 			frappe.msgprint("Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 		except Exception as e:

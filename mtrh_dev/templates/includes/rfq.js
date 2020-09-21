@@ -56,11 +56,15 @@ rfq = Class.extend({
 
 	change_rate: function(){
 		var me = this;
-		$(".rfq-items").on("change", ".rfq-rate", function(){
+		$(".rfq-items").on("keyup", ".rfq-rate", function(){
 			me.idx = parseFloat($(this).attr('data-idx'));			
 			me.rate = parseFloat($(this).val()) || 0;
 			me.qty = parseFloat($(repl('.rfq-qty[data-idx=%(idx)s]',{'idx': me.idx})).val());
 			//alert(me.qty)			
+			me.update_qty_rate();
+			//$(this).val(format_number(me.rate, doc.number_format, 2));
+		})
+		$(".rfq-items").on("change", ".rfq-rate", function(){
 			me.update_qty_rate();
 			$(this).val(format_number(me.rate, doc.number_format, 2));
 		})
@@ -92,7 +96,7 @@ rfq = Class.extend({
 
 	submit_rfq: function(){
 		$('.btn-sm').click(function(){
-			var isconfirmed = confirm("Are you sure you have entered all details accurately.?");
+			var isconfirmed = confirm("Any previously submitted quotation for the associated RFQ [" + doc.name + "] will be overwritten and this will be regarded as the updated quotation. Are you sure?");
 			if(isconfirmed){
 				frappe.freeze();
 				frappe.call({

@@ -16,6 +16,7 @@ import datetime
 from frappe.utils import cint, flt, cstr, now
 from datetime import date, datetime
 from erpnext.buying.doctype.request_for_quotation.request_for_quotation import send_supplier_emails
+from erpnext.controllers.buying_controller import BuyingController
 import re
 class TQE(Document):
 	pass
@@ -310,11 +311,12 @@ def send_adhoc_members_emails(doc, state):	#method to send emails to adhoc membe
 
 def send_notifications(adhoc_list, message,subject,doctype,docname):
 	#template_args = get_common_email_args(None)
+	attachments = [frappe.attach_print(doctype, docname, file_name=docname)]
 	email_args = {
 				"recipients": adhoc_list,
 				"message": _(message),
 				"subject": subject,
-				#"attachments": [frappe.attach_print(self.doctype, self.name, file_name=self.name)],
+				"attachments": attachments or None,
 				"reference_doctype": doctype,
 				"reference_name": docname,
 				}	
@@ -380,55 +382,224 @@ def Onsubmit_Of_Purchase_Receipt(doc, state):
 	doc.insert(ignore_permissions = True)
 @frappe.whitelist()
 def stage_rfqs(userid):
-	approved_rfqs = frappe.db.get_list("Request for Quotation",
+	'''approved_rfqs = frappe.db.get_list("Request for Quotation",
 			filters={
 				"docstatus":1,				
 			},
 			fields=["name"],
 			ignore_permissions = True,
 			as_list=False
-		)
+		)'''
+	approved_rfqs = frappe.db.sql(f"""SELECT name FROM `tabRequest for Quotation`\
+		 WHERE docstatus =1\
+			  AND name NOT IN (SELECT reference_name FROM `tabDocument Email Dispatch`)   """, as_dict=True)
 	docnames = [x.get("name") for x in approved_rfqs]
 	list(map(lambda x: stage_supplier_email(frappe.get_doc("Request for Quotation",x),"submitted"), docnames))
 	return
+def dispatch_staged_email_cron():
+	unsent_q = f"""SELECT name FROM `tabDocument Email Dispatch`\
+		WHERE status not in ('On Hold','Sent') """ #status not in ('On Hold','Sent')
+	list_unsent  = frappe.db.sql(unsent_q, as_dict=True)
+	if list_unsent and len(list_unsent)>0:
+		documents = [frappe.get_doc("Document Email Dispatch", x.get("name")) for x in list_unsent]
+		list(map(lambda x: dispatch_staged_email(x,"Submitted"), documents))
+	########SUPPLIER ACCOUNTS
+	sent_q = f"""SELECT name, supplier, supplier_email FROM `tabDocument Email Dispatch`\
+		WHERE status in ('Sent') AND account_created ='0' """
+	list_sent  = frappe.db.sql(sent_q, as_dict=True)
+	sent_docs = [frappe.get_doc("Document Email Dispatch", x.get("name")) for x in list_sent]
+	list(map(lambda x: create_supplier_account(x.get("supplier"), x.get("supplier_email")), list_sent))
+	list(map(lambda x: account_created(x), sent_docs))
+	return
+def account_created(doc):###doctype =Document Email Dispatch
+	doc.set("account_created", True)
+	doc.save()
+	return
+@frappe.whitelist()
+def stage_po(docname):
+	doc = frappe.get_doc("Purchase Order", docname)
+	stage_supplier_email(doc , "before_submit")
 def stage_supplier_email(doc, state):
-	suppliers = doc.get("suppliers")
-	for row in suppliers:
+	if doc.get('doctype')=="Purchase Order":
+		po =doc.get("name")
+		expiry = doc.get("schedule_date")
+		message = f"Dear Sir/Madam,<br/>Please find attached purchase order {po} for your reference.\
+			 Please note that the order is valid on or before {expiry}.<br>\
+			.The list of items is shown on the attached document.<br/>"
 		sq_doc = frappe.get_doc({
-				"doctype": "Document Email Dispatch",
-				"supplier": row.get("supplier"),
-				"supplier_email": row.get("email_id")  or get_supplier_email(row.get("supplier")),
-				"message": doc.get("message_for_supplier"),
-				"reference_doctype": doc.get("doctype"), 
-				"reference_name":doc.get("name")
-			})
+					"doctype": "Document Email Dispatch",
+					"supplier": doc.get("supplier") or doc.get("supplier_name"),
+					"supplier_email": doc.get("contact_email") or get_supplier_email(doc.get("supplier")),
+					"message": message,
+					"reference_doctype": doc.get("doctype"), 
+					"reference_name":doc.get("name")
+				})
 		sq_doc.flags.ignore_permissions = True
 		sq_doc.run_method("set_missing_values")
 		sq_doc.insert()
+	else: #RFQ
+		suppliers = doc.get("suppliers")
+		for row in suppliers:
+			sq_doc = frappe.get_doc({
+					"doctype": "Document Email Dispatch",
+					"supplier": row.get("supplier"),
+					"supplier_email": row.get("email_id")  or get_supplier_email(row.get("supplier")),
+					"message": doc.get("message_for_supplier"),
+					"reference_doctype": doc.get("doctype"), 
+					"reference_name":doc.get("name")
+				})
+			sq_doc.flags.ignore_permissions = True
+			sq_doc.run_method("set_missing_values")
+			sq_doc.insert()
 def dispatch_staged_email(doc , state):
-	doc2send = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
-	doc.flags.ignore_permissions = True
-	doc.run_method("set_missing_values")
-
-	documenttype = doc2send.get("doctype")
-	documentname = doc2send.get("doctype")
-	supplier_email = doc.get("supplier_email")
-	regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'	
-	if supplier_email:
-		if re.search(regex, supplier_email.strip()):
-			doc.set("status", "Sent")
-			doc.save()
-			send_notifications([supplier_email.strip()], f"Please find attached {documenttype}\
-				for your reference and appropriate action.\
-					Please ignore this email if you already received this correspondence before.",\
-					f"{documenttype} - {documentname}",\
-						doc2send.get("doctype"),doc2send.get("name"))
-			#doc2send.submit()
+	if doc.get("status") not in ["Sent"] and '-EX-' not in doc.get("reference_name"):
+		doc2send = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
+		doc.flags.ignore_permissions = True
+		doc.run_method("set_missing_values")
+		documenttype = doc2send.get("doctype")
+		documentname = doc2send.get("name")
+		supplier_email = doc.get("supplier_email")
+		#regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
+		message = doc.get("message")	
+		if supplier_email and message:
+			#if re.search(regex, supplier_email.strip()):
+			if '@' in supplier_email and '.' in supplier_email:
+				doc.set("status", "Sent")
+				doc.set("supplier_email", supplier_email.strip())
+				doc.save()
+				
+				send_notifications([supplier_email.strip()], f"{message}",\
+						f"{documenttype} - {documentname}",
+							doc2send.get("doctype"),doc2send.get("name"))
+				update_supplier_contact_custom(doc.get("supplier"), supplier_email.strip(), None)
+			else:
+				doc.set("status","Failed")
+				doc.save()
 		else:
 			doc.set("status","Failed")
 			doc.save()
-			#frappe.throw("Sorry, the Email provided is not valid. Please retype the e-mail and save this document again")
 	return
+def create_supplier_account(supplier_name, email):
+	if '@' in email and '.' in email:
+		if not frappe.db.exists("User", email):
+				user = frappe.get_doc({
+						'doctype': 'User',
+						'send_welcome_email': 1,
+						'email': email,
+						'first_name': supplier_name,
+						'user_type': 'Website User'
+						#'redirect_url': link
+					})
+				user.role_profile_name = 'Supplier Profile'
+				user.save(ignore_permissions=True)
+def update_supplier_contact_link_cron():
+	rfqs_on_dispatch = frappe.db.sql(f"""SELECT reference_doctype, reference_name\
+		 FROM `tabDocument Email Dispatch`\
+			 WHERE status in ('Sent') AND reference_doctype='Request for Quotation'""", as_dict=True)
+	docs =[frappe.get_doc(x.get("reference_doctype"), x.get("reference_name"))\
+		for x in rfqs_on_dispatch]
+	list(map(lambda x: update_supplier_contact_link(x), docs))
+
+#
+def update_supplier_contact(doc, rfq_supplier, link):
+	'''Create a new user for the supplier if not set in contact'''
+	update_password_link = get_link(doc)
+
+	if frappe.db.exists("User", rfq_supplier.email_id):
+		user = frappe.get_doc("User", rfq_supplier.email_id)
+	else:
+		create_supplier_account(rfq_supplier.supplier,  rfq_supplier.email_id)
+	update_contact_of_supplier(rfq_supplier, user)
+	
+	return update_password_link 
+
+def update_contact_of_supplier(rfq_supplier, user):
+	if rfq_supplier.contact:
+		contact = frappe.get_doc("Contact", rfq_supplier.contact)
+	else:
+		contact = frappe.new_doc("Contact")
+		contact.first_name = rfq_supplier.supplier_name or rfq_supplier.supplier
+		contact.append('links', {
+			'link_doctype': 'Supplier',
+			'link_name': rfq_supplier.supplier
+		})
+
+	if not contact.email_id and not contact.user:
+		contact.email_id = user.name
+		contact.user = user.name
+
+	contact.save(ignore_permissions=True)
+#
+def update_supplier_contact_link(doc):
+	link = get_link(doc)
+	for rfq_supplier in doc.get('suppliers'):
+		update_supplier_contact(doc, rfq_supplier, link)
+def get_link(doc):
+	from frappe.utils import get_url, cint
+	# RFQ link for supplier portal
+	return get_url("/rfq/" + doc.name)
+def update_supplier_contact_custom(supplier, email=None, phone=None):
+	contact = frappe.db.get_value("Dynamic Link", {"link_doctype":"Supplier", "link_title":supplier, "parenttype":"Contact"} ,"parent")
+	if email:
+		frappe.db.set_value("Contact", contact, "email_id", email)
+	if phone:
+		frappe.db.set_value("Contact", contact, "phone", phone)	
+	return
+def update_prequalification_list_cron():
+	unflagged_rfqs = frappe.db.sql(f"""SELECT name FROM `tabRequest for Quotation`\
+				WHERE prequalification_updated = 0  and docstatus='1'\
+					 """,as_dict=True)
+	doclist = [x.get("name") for x in unflagged_rfqs]
+	if doclist:
+		list(map(lambda x: update_prequalification_list_shorthand(x), doclist))
+	return
+@frappe.whitelist()
+def update_prequalification_list_shorthand(docname):
+	doc = frappe.get_doc("Request for Quotation", docname)
+	if doc.get("docstatus")!=1:
+		frappe.throw(f"Sorry, {docname} is not approved1")
+	if doc.get("prequalification_updated") != True:
+		update_prequalification_list(doc, "on_submit")
+	return
+def update_prequalification_list(doc, state):
+	try:
+		item_group = doc.get("buyer_section")
+		supplier_list =[x.get("supplier") for x in doc.get("suppliers") if x.get("suppliers")!="Open Tender"]
+		if supplier_list:
+			prequalification_document = frappe.db.sql(f"""SELECT name FROM `tabPrequalification`\
+				WHERE item_group ='{item_group}' and docstatus='1'\
+					 """,as_dict=True)
+			if not prequalification_document:
+				create_new_preq(item_group, supplier_list) 
+			else:
+				doc2append = frappe.get_doc("Prequalification", prequalification_document[0].get("name"))
+				doc2append = append_preq_supplier_list(doc2append,item_group, supplier_list)
+				doc2append.flags.ignore_permissions=True
+				doc2append.run_method("set_missing_values")
+				doc2append.save()
+			#user = frappe.session.user
+			doc.add_comment('Comment', 'Updated list of prequalified bidders')
+			frappe.db.set_value(doc.get("doctype"), doc.get("name"),"prequalification_updated",True)
+			doc.notify_update()
+	except Exception as e:
+		frappe.throw(f"Sorry an error occured because {e}")
+def create_new_preq(item_group, supplier_list):
+	sq_doc = frappe.get_doc({
+			"doctype": "Prequalification",
+			"item_group": item_group,			
+		})	
+	sq_doc = append_preq_supplier_list(sq_doc ,item_group, supplier_list)
+	sq_doc.flags.ignore_permissions = True
+	sq_doc.run_method("set_missing_values")
+	sq_doc.save()
+	sq_doc.submit() 
+def append_preq_supplier_list(doc2append, item_group, supplier_list):
+	suppliers_in_list = [x.get('supplier_name') for x in doc2append.get('supplier_name')]
+	for supplier in supplier_list:
+		if not supplier in suppliers_in_list:
+			doc2append.append('supplier_name',{"supplier_name": supplier,
+												"item_group_name":item_group})
+	return doc2append 
 def get_supplier_email(supplier):
 	dynamic_link = frappe.db.get_value("Dynamic Link", {"link_name":supplier, "link_doctype":"Supplier", "parenttype":"Contact"},"parent")
 	email =frappe.db.get_value("Contact Email", {"is_primary":"1", "parenttype":"Contact", "parent":dynamic_link}, "email_id")

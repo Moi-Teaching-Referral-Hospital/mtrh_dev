@@ -11,6 +11,7 @@
   "reference_doctype",
   "reference_name",
   "status",
+  "account_created",
   "amended_from"
  ],
  "fields": [
@@ -78,11 +79,19 @@
    "options": "Supplier",
    "show_days": 1,
    "show_seconds": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "account_created",
+   "fieldtype": "Check",
+   "label": "Account Created",
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "links": [],
- "modified": "2020-08-28 19:21:56.495631",
- "modified_by": "salimmwaura@mtrh.go.ke",
+ "modified": "2020-09-16 14:56:39.357782",
+ "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Document Email Dispatch",
  "owner": "Administrator",
@@ -96,6 +105,39 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Master Manager",
    "share": 1,
    "write": 1
   }

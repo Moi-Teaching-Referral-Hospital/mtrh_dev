@@ -14,7 +14,8 @@
   "suppliers",
   "department",
   "amended_from",
-  "re_evaluate_document"
+  "re_evaluate_document",
+  "is_internal"
  ],
  "fields": [
   {
@@ -81,11 +82,19 @@
    "label": "Re Evaluate Document",
    "show_days": 1,
    "show_seconds": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_internal",
+   "fieldtype": "Check",
+   "label": "Is Internal Award",
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-09-03 12:42:35.154521",
+ "modified": "2020-09-07 11:12:40.215862",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Award",

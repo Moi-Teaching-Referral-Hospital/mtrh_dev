@@ -19,13 +19,22 @@ def procurement_consumption_mrq(year_start, year_end,item_code, department_name)
 	AND item_code = %s AND upper(department) = %s AND docstatus=1;""",(year_start,year_end,item_code,department_name.upper()))
 	#msgprint(total_qty[0][0])
 	return flt(total_qty[0][0]) if total_qty else 0.0
+def valid_project(project, department):
+	return frappe.db.get_value("Project", {"department": department,"name":project})
 @frappe.whitelist()
-def procurement_plan_bal_mrq(year_start, year_end,item_code, department_name, fiscal_year):
+def procurement_plan_bal_mrq(year_start, year_end,item_code, department_name, fiscal_year, project=None):
 	#msgprint("I have run again") 
 	total_qty =frappe.db.sql("""SELECT coalesce(sum(qty),0) FROM `tabMaterial Request Item` WHERE creation BETWEEN %s AND %s
 	AND item_code = %s AND upper(department) = %s AND docstatus!=2;""",(year_start,year_end,item_code,department_name.upper()))
 	procurement_plan_amt = frappe.db.sql("""SELECT coalesce(sum(qty),0) FROM `tabProcurement Plan Item` WHERE docstatus=1 AND item_code=%s AND upper(department_name)=%s 
 		AND fs_yr=%s """,(item_code,department_name.upper(),fiscal_year))
+	if project and valid_project(project, department_name):
+		total_qty =frappe.db.sql("""SELECT coalesce(sum(qty),0) FROM `tabMaterial Request Item`\
+			 WHERE creation BETWEEN %s AND %s AND item_code = %s AND upper(project) = %s AND docstatus!=2;""",\
+			(year_start,year_end,item_code,project.upper()))
+		procurement_plan_amt = frappe.db.sql(f"""SELECT coalesce(sum(qty),0) as qty FROM\
+			 `tabProject Procurement Plan Item`\
+				 WHERE parent ='{project}' """)
 	procurement_plan_balance = procurement_plan_amt[0][0]-total_qty[0][0]
 	#msgprint(flt(total_qty[0][0]))
 	frappe.response["consumed"] = total_qty

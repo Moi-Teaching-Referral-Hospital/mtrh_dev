@@ -24,6 +24,7 @@ class TQE(Document):
 def get_connection():
 	#print("Starting works")
 	try:
+        
 		conn = psycopg2.connect("dbname='funsoft' user='fs_bridge' host='172.16.106.1' password='s3quence!'")
 		return conn
 	except Exception as e:

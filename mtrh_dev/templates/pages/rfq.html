@@ -15,8 +15,11 @@
 {% block header_actions %}
 {% if frappe.utils.time_diff_in_seconds(frappe.utils.now(), doc.transaction_date) <= 0 %}
 {% if doc.items and doc.rfq_links %}
-<label class="btn btn-success ">
-    {{ _("Submitted") }}</label>
+<label class="btn btn-success btn-sm">
+	{{ _("Submitted") }}</label>
+<button class="btn btn-primary btn-sm"
+    type="button">
+    {{ _("Re-Submit") }}</button>
 {% else %}
 <button class="btn btn-primary btn-sm"
     type="button">
@@ -41,10 +44,10 @@
 	<div id="order-container">
 			<div id="rfq-items">
 				<div class="row cart-item-header">
-					<div class="col-sm-5 col-6">
+					<div class="col-sm-6 col-6">
 						{{ _("Items") }}
 					</div>
-					<div class="col-sm-2 col-3 text-right">
+					<div class="col-sm-2 col-2 text-right">
 						{{ _("Qty") }}
 					</div>
 					<div class="col-sm-2 col-3 text-right">
@@ -68,7 +71,8 @@
 			{{doc.currency_symbol}}  <span class="tax-grand-total">0.0</span>
 			</div>
 		</div>
-        {% endif %}
+		{% endif %}
+		<p >{{ _("<b><u>PLEASE NOTE: All your quoted prices should be INCLUSIVE OF ALL TAXES.</u></b>") }}</p>
 		<div class="row terms">
 			<div class="col-6">
 				<br><br>

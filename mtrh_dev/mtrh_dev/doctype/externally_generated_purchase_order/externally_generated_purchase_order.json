@@ -14,7 +14,7 @@
   "company",
   "section_break_7",
   "material_request",
-  "column_break_8",
+  "column_break_mr",
   "external_po_and_relevant_documentation",
   "section_break_11",
   "posting_date",
@@ -124,12 +124,6 @@
    "show_seconds": 1
   },
   {
-   "fieldname": "column_break_8",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
-  },
-  {
    "fieldname": "external_po_and_relevant_documentation",
    "fieldtype": "Attach",
    "label": "External PO and relevant documentation",
@@ -154,11 +148,17 @@
    "fieldtype": "Section Break",
    "show_days": 1,
    "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_mr",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-07-29 17:55:56.755753",
+ "modified": "2020-09-07 09:26:15.076949",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Externally Generated Purchase Order",
