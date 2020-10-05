@@ -62,7 +62,7 @@ def create_tq_opening_doc(doc, state):
 			})
 		bids_so_far = sq_doc.get("bids")
 		number_of_bids = len([bid.get("bid_number") for bid in bids_so_far])
-		sq_doc["respondents"]=number_of_bids
+		sq_doc.respondents=number_of_bids
 		sq_doc.flags.ignore_permissions = True
 		sq_doc.run_method("set_missing_values")
 		sq_doc.save()
@@ -75,8 +75,17 @@ def perform_sq_save_operations(doc , state):
 		doc.request_for_quotation = doc.get("reference_procurement_id")
 		for d in doc.get("items"):
 			d.request_for_quotation = doc.get("reference_procurement_id")
-	else:
-		return
+	#doc.flags.ignore_permissions =True
+	doc.save()
+	#doc.submit()
+@frappe.whitelist()
+def perform_sq_submit_operations_cron():
+	"""This code automatically submits."""
+	unsubmitted_sqs = f"""SELECT name FROM `tabSupplier Quotation` WHERE docstatus = "0" and status = 'Draft' ;"""
+	unsubmitted_quotes = frappe.db.sql(unsubmitted_sqs, as_dict=True)
+	if unsubmitted_quotes:
+		documents = [frappe.get_doc("Supplier Quotation", x.get("name")) for x in unsubmitted_quotes]
+		list(map(lambda x: x.submit(), documents))
 def perform_sq_submit_operations(doc , state):
 	'''
 	PUR-SQTN-.YYYY.- RETURNED QUOTATIONS
@@ -157,7 +166,7 @@ def perform_tqo_save_operations(doc, state):
 	ad_hoc_members = doc.get("adhoc_members")
 	if ad_hoc_members:
 		update_empty_passwords(doc)				
-		send_opening_passwords_alert(doc)
+		#send_opening_passwords_alert(doc)
 def send_opening_passwords_alert(doc):
 	doc = update_empty_passwords(doc)
 	ad_hoc_members = [x for x in doc.get("adhoc_members") if x.get("logged_in")!="1"] #only members who 
@@ -170,17 +179,24 @@ def send_opening_passwords_alert(doc):
 @frappe.whitelist()
 def send_opening_password_to_user(user,docname):
 	doc = frappe.get_doc("Tender Quotation Opening", docname)
-	member_email = [user]
-	member_passwords = [x.get("user_password") for x in doc.get("adhoc_members") if x.get("user_mail")==user]
+	#member_email = [user]
+	for m in doc.get("adhoc_members"):
+		user = m.get("user")
+		mail = m.get("user_mail")
+		frappe.db.sql(f"""UPDATE `tabRequest For Quotation Adhoc Committee` \
+					SET user_password = '{user}'\
+						WHERE parent ='{docname}' AND user_mail = '{mail}'""")
+				
+	'''member_passwords = [x.get("user_password") for x in doc.get("adhoc_members") if x.get("user_mail")==user]
 	if not member_passwords:	
 		doc = update_empty_passwords(doc)
-		member_passwords = [x.get("user_password") for x in doc.get("adhoc_members") if x.get("user_mail")==user]	
+		member_passwords = [x.get("user_password") for x in doc.get("adhoc_members") if x.get("user_mail")==user]	'''
 
-	send_notifications(member_email, "You are reminded to use this password {0} \
+	'''send_notifications(member_email, "You are reminded to use this password {0} \
 		to open supplier quotations for {1} ".format(member_passwords[0] , doc.get("name")),\
 			"Reminder: Ad Hoc Committee Password - {0}".format(docname),\
-				doc.get("doctype"),doc.get("name"))
-	frappe.response["message"]=member_passwords
+				doc.get("doctype"),doc.get("name"))'''
+	frappe.response["message"]=user
 	return
 @frappe.whitelist()
 def update_empty_passwords_shorthand(docname):
@@ -193,18 +209,26 @@ def update_empty_passwords(doc):
 	docname = doc.get("name")
 	ad_hoc_members = doc.get("adhoc_members")
 	#Get empty password fields
-	empty_passwords = [x.get("user_mail")\
-		for x in ad_hoc_members if not x.get("user_password")]
+	#empty_passwords = [x.get("user_mail")\
+	#	for x in ad_hoc_members if not x.get("user_password")]
 	#Update the password fields
-	
-	letters = string.ascii_lowercase
-	for n in empty_passwords:
-		randompwd =''.join(random.choice(letters) for i in range(8)) 
-		frappe.db.sql(f"""UPDATE `tabRequest For Quotation Adhoc Committee`\
+	for m in ad_hoc_members:
+		user = m.get("user")
+		mail = m.get("user_mail")
+		frappe.db.sql(f"""UPDATE `tabRequest For Quotation Adhoc Committee` \
+				SET user_password = '{user}'\
+					WHERE parent ='{docname}' AND user_mail = '{mail}'""")
+	#letters = string.ascii_lowercase
+	'''for n in empty_passwords:
+		#randompwd =''.join(random.choice(letters) for i in range(8)) 
+		randompwd = n.get("user")#frappe.db.get_value("Employee", {"user_id" : n.get("user")},"name")
+		frappe.db.sql(f"""UPDATE \
 			SET user_password = '{randompwd}'\
-				 WHERE parent ='{docname}' AND user_mail = '{n}'""")
+				 WHERE parent ='{docname}' AND user_mail = '{n}'""")'''
 	
-	doc.flags.ignore_permissions = True
+	doc = frappe.get_doc("Tender Quotation Opening", docname)
+	#doc.flags.ignore_permissions = True
+	#doc.save()
 	doc.notify_update()
 	return doc
 def return_unopened_passwords(doc):

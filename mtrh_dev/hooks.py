@@ -94,7 +94,7 @@ default_mail_footer = "MTRH Enterprise System"
 
 doc_events = {
 	"*": {
-		"before_update": [
+		"before_save": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
 		],
 		"before_submit": [
@@ -133,8 +133,9 @@ doc_events = {
 		"on_submit":"mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"			
 	},
 	"Tender Quotation Award":{
-		"before_save":"mtrh_dev.mtrh_dev.tender_quotation_utils.submit_manually_entered_tqas",
-		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
+		#"before_save":"mtrh_dev.mtrh_dev.tender_quotation_utils.submit_manually_entered_tqas",
+		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.\
+			tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
 		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt",
@@ -179,7 +180,7 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.send_comment_sms"
 	},
 	"Supplier Quotation":{
-		"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
+		#"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
 		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"
 	},
 	"Tender Quotation Opening":{
@@ -209,6 +210,9 @@ doc_events = {
 	},
 	"Budget":{
 		"on_submit":"mtrh_dev.mtrh_dev.utilities.project_budget_approved"
+	},
+	"Contact":{
+		"before_save":"mtrh_dev.mtrh_dev.tqe_evaluation.set_supplier_profile"
 	}
 }
 

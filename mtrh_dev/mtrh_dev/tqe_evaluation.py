@@ -492,6 +492,21 @@ def create_supplier_account(supplier_name, email):
 					})
 				user.role_profile_name = 'Supplier Profile'
 				user.save(ignore_permissions=True)
+		else:
+			user = frappe.get_doc("User", email)
+			user.role_profile_name = 'Supplier Profile'
+			user.save(ignore_permissions=True)
+def set_supplier_profile(doc, state):
+	links =doc.get("links")
+	if links:
+		link_doctypes = [links[i].link_doctype for i in range(len(links))]
+		userid = doc.get("user") or doc.get("email_id")
+		supplier_name = doc.get("first_name") or "" +" "+doc.get("last_name") or ""
+		if "Supplier" in link_doctypes and userid:
+			create_supplier_account(supplier_name, userid)
+			doc.set("user",userid)
+			doc.flags.ignore_permissions=True
+			doc.save
 def update_supplier_contact_link_cron():
 	rfqs_on_dispatch = frappe.db.sql(f"""SELECT reference_doctype, reference_name\
 		 FROM `tabDocument Email Dispatch`\

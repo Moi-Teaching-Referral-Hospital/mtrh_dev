@@ -20,6 +20,7 @@ from datetime import date
 from erpnext.stock.get_item_details import get_serial_no
 from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url, get_datetime
 import copy
+from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt
 class WorkFlowCustomAction(Document):
 	pass
 #https://discuss.erpnext.com/t/popup-message-using-frappe-publish-realtime/37286/2
@@ -101,7 +102,11 @@ def process_pending_material_requests():
 @frappe.whitelist()		
 def auto_generate_purchase_order_by_material_request_shorthand(docname):	
 	doc = frappe.get_doc("Material Request", docname)
-	
+	'''if doc.get("per_attended")==0:
+		for item in doc.get("items"):
+			item.attended_to = 0
+	doc.flags.ignore_permissions = True
+	doc.save()'''
 	process_material_request(doc, "before_submit")
 def process_material_request(doc, state):
 	'''
@@ -111,56 +116,77 @@ def process_material_request(doc, state):
 	-Is more modular
 	'''
 	try:
-		all_items , all_items_dict = [x.get("item_code") for x in doc.get("items") if x.get("attended_to")=="0"],\
+		all_items , all_items_dict = [x.get("item_code")
+		for x in doc.get("items") if x.get("attended_to")=="0"],\
 			[x for x in doc.get("items") if x.get("attended_to")=="0"]
 		all_items_q_str = '('+','.join("'{0}'".format(i) for i in all_items)+')'
-		if doc.get("material_request_type") == "Purchase":
+		if doc.get("material_request_type") == "Purchase" and all_items:
 			filtered_dict =[]
-			awarded_items_query =f"""SELECT DISTINCT parent FROM `tabItem Default`\
-					WHERE parent in {all_items_q_str} AND (default_supplier !="" or default_supplier IS NOT NULL) """
+			awarded_items_query =f"""SELECT DISTINCT parent FROM `tabItem Default` 
+			WHERE parent in {all_items_q_str} AND (default_supplier !='' or default_supplier IS NOT NULL) """
 			#---------------------------------------------------------------------------------------
 			######PURCHASE ORDER
 			#-----------------------------------------------------------------------------------------
+			#frappe.throw(awarded_items_query)
 			awarded_items = frappe.db.sql(awarded_items_query, as_dict=True)
 			awarded_item_list =[]
 			if awarded_items:
+				frappe.msgprint(f"Beginning raising orders...'{all_items_q_str}'")
 				awarded_item_list = [x.get("parent") for x in awarded_items]
 				#FURTHER FILTER THE ITEM DICT TO REMAIN WITH AWARDED ITEMS
 				filtered_dict = [x for x in all_items_dict if x.get("item_code") in awarded_item_list]
-				raise_orders(doc, filtered_dict)	
+				itm = len(filtered_dict)
+				frappe.msgprint(f"{itm} items to be raised on PO..")
+				raise_orders(doc, filtered_dict, all_items_q_str)
+				
 			#-------------------------------------------------------------------------------------------
 			#####REQUEST FOR QUOTATION
 			#--------------------------------------------------------------------------------------
 			unawarded_items_list = [x for x in all_items if x not in awarded_item_list]
 			if unawarded_items_list:
+				frappe.msgprint("Beginning raising requests to vendors...")
 				filtered_dict = [x for x in all_items_dict if x.get("item_code") in unawarded_items_list]	
 				raise_rfq(doc, filtered_dict)
-
+				
 		else:
 			#raise_stock_entry(doc, all_items)
 			return
-		set_attended_to(doc, all_items_q_str)
+		#set_attended_to(doc, all_items_q_str)
 	except Exception as e:
 		frappe.throw(f"Sorry an error occured because: {e}")
-def raise_orders(doc, items):
-	item_codes = (x.get("item_code") for x in items)
-	item_codes_q_str = '('+','.join("'{0}'".format(i) for i in item_codes)+')'
-	supplier_list = frappe.get_all('Item Default',
-											filters={
-												'parent': ["IN", item_codes]
-											},
-											fields=['default_supplier'],
-											order_by='creation desc',
-											as_list=False
-										)
-	for supplier in supplier_list:
-		supplier_items = frappe.db.sql(f"""SELECT DISTINCT parent FROM\
-			 `tabItem Default`\
-				  WHERE default_supplier ='{supplier}' AND parent IN {item_codes_q_str}""", as_dict=True)
-		supplier_item_list = [x.get("parent") for x in supplier_items]
-		filtered_supplier_item_dict =[x for x in items if x.get("item_code") in supplier_item_list]
-		raise_order(supplier, filtered_supplier_item_dict, doc.get("item_category"), doc.get("name"))
-	def raise_order(supplier, supplier_items, item_category, material_request_number):
+def raise_orders(doc, items, itemsarr):
+	try:
+		item_codes = [x.get("item_code") for x in items]
+		item_codes_q_str = '('+','.join("'{0}'".format(i) for i in item_codes)+')'
+		supplier_list = frappe.get_all('Item Default',
+												filters={
+													'parent': ["IN", item_codes]
+												},
+												fields=['default_supplier'],
+												order_by='creation desc',
+												group_by='default_supplier',
+												as_list=False
+											)
+		l_sup = len(supplier_list)
+		frappe.msgprint(f"{l_sup} suppliers found")
+		frappe.msgprint(f"{item_codes} list of coded in context")
+		for supplier in supplier_list:
+			the_supplier = supplier.get("default_supplier")
+			supplier_items = frappe.db.sql(f"""SELECT DISTINCT parent FROM\
+				`tabItem Default`\
+					WHERE default_supplier ='{the_supplier}' AND parent IN\
+						 {item_codes_q_str}""", as_dict=True)
+			supplier_item_list = [x.get("parent") for x in supplier_items]
+			filtered_supplier_item_dict =[x for x in items\
+				 if x.get("item_code") in supplier_item_list]
+			frappe.msgprint(f"Sending an order for {supplier}")
+			raise_order(the_supplier, filtered_supplier_item_dict, doc.get("item_category"), doc.get("name"))
+			set_attended_to(doc, supplier_item_list)
+	except Exception as e:
+		frappe.throw(f"Error: {e}")			
+def raise_order(supplier, supplier_items, item_category, material_request_number):
+	try:
+		frappe.msgprint("Raising Purchase Order")
 		po_doc = frappe.get_doc({
 				"doctype": "Purchase Order",
 				"supplier_name":supplier,
@@ -179,7 +205,7 @@ def raise_orders(doc, items):
 			qty = item_dict.qty
 			default_pricelist = frappe.db.get_value('Item Default', {'parent': item}, 'default_price_list')
 			rate = frappe.db.get_value('Item Price',  {'item_code': item,'price_list': default_pricelist},\
-				 'price_list_rate') or item_dict.get("rate")
+				'price_list_rate') or item_dict.get("rate")
 			amount = float(qty) * float(rate)
 			po_doc.append('items',{
 				'item_code': item,
@@ -198,13 +224,17 @@ def raise_orders(doc, items):
 				'net_amount': amount,
 				'base_rate' : rate,
 				'base_amount' : amount,
-				'expense_account' : item_dict.account,
+				'expense_account' : item_dict.get("expense_account"),
 				'department': item_dict.department,
 				'project': item_dict.project if item_dict.project else None
 			})
 		po_doc.flags.ignore_permissions =True
 		po_doc.run_method("set_missing_values")
 		po_doc.insert()
+		po = po_doc.get("name")
+		frappe.msgprint(f"Purchase order {po} created")
+	except Exception as e:
+		frappe.throw(f"Sorry transaction could not complete because: {e}")
 	return
 def get_item_group(item):
 	return frappe.db.get_value("Item", item, 'item_group')
@@ -240,6 +270,8 @@ def raise_rfq(doc, items):
 			doc2append = append_items_to_rfq(rfq_doc2append, items_for_existing_rfq)#SECOND ARG IS A DICT
 			doc2append.run_method("set_missing_values")
 			doc2append.save()
+			items_attended = [x.get("item_code") for x in items_for_existing_rfq]
+			set_attended_to(doc, items_attended)
 	else:
 		raise_new_rfq(doc, items)
 	return
@@ -262,8 +294,11 @@ def append_items_to_rfq(sq_doc , items):
 			"conversion_factor": item_dict.get("conversion_factor")
 		})
 		#ADD UP THE TOTAL VALUE  FOR THIS RFQ.
-		procurement_value += item_dict.get("amount")
-	sq_doc['value_of_procurement'] = procurement_value
+		#total = float(item_dict)
+		procurement_value += flt(item_dict.get("amount"))
+
+	#procurement_value = flt(sum(item.get('amount') for item in doc.get("items")))
+	sq_doc.value_of_procurement = procurement_value
 
 	if not material_request_number in [x.get("material_request") for x in sq_doc.get("material_requests")]:
 		sq_doc.append('material_requests', {
@@ -297,10 +332,6 @@ def reroute_rfq_item(docname , item_ids):
 def raise_new_rfq(doc, items, item_group=None, company_name=None):
 	item_category = item_group or doc.get("item_category")
 	prequalification_list = prequalified_suppliers_list(item_category)
-	#prequalification_list = list(dict.fromkeys(prequalification_list))
-	
-#	prequalification_list = { each['supplier'] : each for each in prequalification_list}.values()
-
 	try:
 		sq_doc = frappe.get_doc({
 			"doctype": "Request for Quotation",
@@ -313,25 +344,16 @@ def raise_new_rfq(doc, items, item_group=None, company_name=None):
 			"status":"Draft"			
 		})	
 		sq_doc = append_items_to_rfq(sq_doc , items)
-
 		sq_doc.flags.ignore_permissions = True
 		sq_doc.run_method("set_missing_values")
 		sq_doc.save()
+		items_attended = [x.get("item_code") for x in items]
+		set_attended_to(doc, items_attended)
 	except Exception as e:
 		frappe.throw(f"Sorry an error occured because : {e}")	
 	return
 def prequalified_suppliers_list(item_category):
-	'''prequalified_suppliers  = frappe.db.get_list("Prequalification Supplier",
-									filters={
-										"item_group_name": ["IN", item_category],
-										"supplier_name":["!=","Open Tender"],
-										"docstatus":"1"
-									},
-									fields=["supplier_name"],
-									ignore_permissions = True,
-									as_list=False
-								) or [{"supplier_name":"Open Tender"}]'''
-
+	
 	prequalified_suppliers_q	=	f"""SELECT DISTINCT supplier_name FROM `tabPrequalification Supplier`\
 								WHERE item_group_name = '{item_category}' AND supplier_name !='Open Tender'\
 									AND docstatus='1' """
@@ -363,11 +385,12 @@ def raise_stock_entry(doc, items):
 	pass
 def set_attended_to(doc, items, action=None):
 	docname = doc.get("name")
+	items_str = '('+','.join("'{0}'".format(i) for i in items)+')'
 	action_string =f" SET attended_to ='1' "
 	if action:
 		action_string = f"SET attended_to ='{action}'"
 	update_action_query = f"UPDATE `tabMaterial Request Item` {action_string}\
-		 WHERE parent = '{docname}' AND item_code IN {items};"
+		 WHERE parent = '{docname}' AND item_code IN {items_str};"
 	frappe.db.sql(update_action_query)
 	doc.notify_update()
 def compute_percentage_attended_to(doc):

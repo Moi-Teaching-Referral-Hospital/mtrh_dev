@@ -1,7 +1,7 @@
 import frappe, json
 from frappe import _
 from frappe.utils.file_manager import check_max_file_size, get_content_hash, get_file_name, get_file_data_from_hash
-from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today, cint
+from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt
 import os, base64
 from six import text_type, string_types
 import mimetypes
@@ -210,11 +210,22 @@ def clean_up_rfq(doc, state):
 		new_message_to_supplier = "Please find attached, a list of item/items for your response via a quotation. We now only accept responses to the quotation via our portal. \
 			Responses by replying via email or via paper based methods are NOT accepted for this quote. Please login to the portal using your credentials here: https://portal.mtrh.go.ke. Then click on 'Request for Quotations', pick this RFQ/Tender and fill in your unit price inclusive of tax."
 		doc.set("message_for_supplier", new_message_to_supplier)
-
+	if doc.get("suppliers"):
+		for rfq_supplier in doc.get("suppliers"):
+			#if not rfq_supplier.email_id:
+			thesupplier = rfq_supplier.get("supplier")
+			contact = frappe.db.get_value("Dynamic Link",\
+			{"link_doctype":"Supplier", "link_title":thesupplier, "parenttype":"Contact"}\
+				 ,"parent")
+			#if contact:
+			rfq_supplier.contact = contact
+			rfq_supplier.email_id = None if not rfq_supplier.contact else  frappe.db.get_value("Contact", contact, "user")\
+				or frappe.db.get_value("Contact", contact, "email_id")
+			
 def reassign_ownership(doc, state):
-	if doc.get('doctype')=="Purchase Receipt" or doc.get('doctype')=="Request for Quotation":
+	if doc.get('doctype')=="Purchase Order" or doc.get('doctype')=="Request for Quotation":
 		old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
-		new_workflow_state = get_workflow_name(doc.get('doctype'))
+		new_workflow_state = get_doc_workflow_state(doc)
 		if (old_workflow_state == "Draft") and old_workflow_state != new_workflow_state:
 			#WE ARE ABOUT TO TRANSITION THE DOCUMENT FROM DRAFT. ASSIGN OWNERSHIPT TO THIS OFFICER. 
 			doc.set("owner", frappe.session.user)
@@ -525,13 +536,13 @@ def get_user_phonenumber(userid):
 		if the_phone[0] != "0":
 			the_phone = "0" + the_phone"""
 	if not the_phone:
-		fetch_contact(userid)
+		the_phone = fetch_contact(userid)
 	return the_phone
 def fetch_contact(userid):
 	sql_to_run =f"""SELECT mobile_no FROM `tabContact` WHERE mobile_no\
-		IS NOT NULL and email_id ={userid} LIMIT 1 """
+		IS NOT NULL and email_id ='{userid}' LIMIT 1 """
 	mobile_no = frappe.db.sql(sql_to_run,as_dict=True)
-	return mobile_no[0].get("mobile_no")
+	return mobile_no[0].get("mobile_no") if mobile_no else ""
 #====================================================================================================================================================
 # SEND A USER SMS GIVEN A USER ID/EMAIL		
 #====================================================================================================================================================
@@ -542,7 +553,7 @@ def send_sms_to_user(userid, message):
 	incoming_payload =[]
 	phone = get_user_phonenumber(userid)
 	#frappe.response["phone"] = phone
-	if(len(phone) > 0):
+	if phone:
 		data = {
 			"phone": phone,
 			"message": message
@@ -839,7 +850,7 @@ def get_votehead_balance(document_type, document_name):
 		
 		
 		#FORMAT THE VOTE BALANCE STATEMENT
-		vote_statement = "<b>Vote Balance - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
+		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
 		vote_statement += "<tr><td><b>Item</b></td><td>Quarter</td><td>Annual</td></tr>"
 		vote_statement += "<tr><td><b>Allocation</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_budget, annual_budget)
 		vote_statement += "<tr><td><b>Balance Before</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment, 'Currency'), frappe.format(real_annual_commitment, 'Currency'))
@@ -847,15 +858,62 @@ def get_votehead_balance(document_type, document_name):
 		vote_statement += "<tr><td><b>Balance After</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment - amount, 'Currency'), frappe.format(real_annual_commitment - amount, 'Currency'))
 		vote_statement += "</table>"
 		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
-		if not doc.get("vote_statement"):
-			frappe.msgprint("Votebook information rendered")
+		if not doc.get("vote_statement") and doc.get("docstatus") == 0:
 			doc.set("vote_statement", vote_statement)
 			doc.flags.ignore_permissions = True
 			doc.save()
 			doc.notify_update()
 		return vote_statement
 	elif document_type=="Payment Request":
-		pass
+		#GET ASSOCIATED PURCHASE ORDER.
+		doc = frappe.get_doc(document_type, document_name)
+		associated_invoice = frappe.get_doc("Purchase Invoice", doc.get("reference_name"))
+		associated_po = frappe.get_doc("Purchase Order", associated_invoice.get("items")[0].purchase_order)
+
+		department = associated_po.get("items")[0].department
+		account = associated_po.get("items")[0].expense_account
+		amount = associated_po.get("grand_total")
+		dimension,dimension_name ="Department", department
+		this_entry_amount = flt(doc.get("grand_total"))
+		if associated_po.get("items")[0].project:
+			dimension, dimension_name = None, None
+			dimension, dimension_name ="Project",associated_po.get("items")[0].project
+		vote = return_budget_dict(dimension, dimension_name, account)
+		#BUDGET BALANCES
+		flt_quarter_budget, flt_annual_budget = flt(vote.get("q_budget")) or 0.0, flt(vote.get("t_budget")) or 0.0
+		flt_quarter_commitment, flt_annual_commitment = flt(vote.get("q_commit")) or 0.0, flt(vote.get("q_commit")) or 0.0
+		flt_quarter_actual, flt_annual_actual = flt(vote.get("q_actual")) or 0.0, flt(vote.get("t_actual")) or 0.0
+		flt_quarter_aggregated, flt_annual_aggregated = flt_quarter_commitment + flt_quarter_actual - this_entry_amount,\
+			flt_annual_commitment + flt_annual_actual - this_entry_amount
+		flt_quarter_balance_before, flt_annual_balance_before = flt_quarter_budget - flt_quarter_aggregated, \
+			flt_annual_budget - flt_annual_aggregated, 
+		flt_quarter_balance_after, flt_annual_balance_after = flt_quarter_balance_before - this_entry_amount, \
+			flt_annual_balance_before - this_entry_amount, 
+
+		quarter_budget, annual_budget = frappe.format(flt_quarter_budget, 'Currency'), frappe.format(flt_annual_budget, 'Currency')
+		#quarter_commitment, annual_commitment = frappe.format(flt_quarter_commitment, 'Currency'), frappe.format(flt_annual_commitment, 'Currency')
+		#quarter_actual, annual_actual = frappe.format(flt_quarter_actual, 'Currency'), frappe.format(flt_annual_actual, 'Currency')
+		quarter_aggregated, annual_aggregated = frappe.format(flt_quarter_aggregated, 'Currency'), frappe.format(flt_annual_aggregated, 'Currency')
+		quarter_balance_before, annual_balance_before = frappe.format(flt_quarter_balance_before, 'Currency'), frappe.format(flt_annual_balance_before, 'Currency')
+		quarter_balance_after, annual_balance_after = frappe.format(flt_quarter_balance_after, 'Currency'), frappe.format(flt_annual_balance_after, 'Currency')
+		this_entry_formatted = frappe.format(this_entry_amount, 'Currency')
+		
+		#FORMAT THE VOTE BALANCE STATEMENT
+		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
+		vote_statement += "<tr><td><b>Item</b></td><td>Quarter</td><td>Annual</td></tr>"
+		vote_statement += "<tr><td><b>Allocation</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_budget, annual_budget)
+		vote_statement += "<tr><td><b>Commitments and Expenditure</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_aggregated, annual_aggregated)
+		vote_statement += "<tr><td><b>Balance Before</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_balance_before, annual_balance_before)
+		vote_statement += "<tr><td><b>This Entry</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(this_entry_formatted, this_entry_formatted)
+		vote_statement += "<tr><td><b>Balance After</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_balance_after, annual_balance_after)
+		vote_statement += "</table>"
+		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
+		if doc.get("docstatus") == 0:
+			doc.set("vote_statement", vote_statement)
+			doc.flags.ignore_permissions = True
+			doc.save()
+			doc.notify_update()
+		return vote_statement
 	elif document_type=="Material Request":
 		pass
 	else:
@@ -997,7 +1055,7 @@ def update_sq(docname=None):
 
 def log_time_to_action(doc, state):
 	#VALIDATE THAT IT IS A WORKFLOW TRANSITION.
-	new_workflow_state = get_workflow_name(doc.get('doctype'))
+	new_workflow_state = get_doc_workflow_state(doc)
 	if not new_workflow_state:
 		return
 	old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')

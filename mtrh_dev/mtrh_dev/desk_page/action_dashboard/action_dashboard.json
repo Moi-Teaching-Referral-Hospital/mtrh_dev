@@ -4,7 +4,7 @@
  "charts": [],
  "creation": "2020-08-13 23:51:30.289718",
  "developer_mode_only": 0,
- "disable_user_customization": 0,
+ "disable_user_customization": 1,
  "docstatus": 0,
  "doctype": "Desk Page",
  "extends_another_page": 0,
@@ -12,7 +12,7 @@
  "idx": 0,
  "is_standard": 1,
  "label": "Action Dashboard",
- "modified": "2020-09-21 18:43:26.193978",
+ "modified": "2020-09-30 10:43:12.360826",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Action Dashboard",
@@ -40,6 +40,14 @@
    "label": "Your Time to Action",
    "link_to": "Time to Action",
    "stats_filter": "{\n    \"user\": [\"=\", frappe.session.user]\n}",
+   "type": "DocType"
+  },
+  {
+   "color": "#ffa685",
+   "format": "{} Unread",
+   "label": "Your Notifications",
+   "link_to": "Notification Log",
+   "stats_filter": "{\n    \"type\": [\"not in\", [\"Energy Point\"]],\n    \"for_user\": [\"=\", frappe.session.user],\n    \"read\": 0\n}",
    "type": "DocType"
   }
  ],

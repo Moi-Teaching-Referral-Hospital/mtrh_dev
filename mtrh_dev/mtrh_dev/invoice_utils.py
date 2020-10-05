@@ -27,26 +27,30 @@ from frappe.model.workflow import get_workflow_name
 class InvoiceUtils(Document):
 	pass
 def raise_payment_request(doc, state):
-	try:
-		args ={}
-		args["dt"] = "Purchase Invoice"
-		args["dn"] = doc.get("name")
-		args["loyalty_points"] = ""
-		args["party_type"] = "Supplier"
-		args["party"]=doc.get("supplier")
-		args["payment_request_type"]="Outward"
-		args["transaction_date"]=date.today
-		args["return_doc"]=True
-		args["submit_doc"]=False
-		args["order_type"]="Purchase Invoice"
-		if args:
-			from erpnext.accounts.doctype.payment_request.payment_request import make_payment_request
-			payment_request_doc = make_payment_request(**args)
-			payment_request_doc.insert(ignore_permissions=True)
-			frappe.msgprint("Payment request {0} has been created successfully. ".format(payment_request_doc.get("name")))
-	except Exception as e:
-		frappe.msgprint("Operation could not be completed because of {0}"\
-			.format(e))
+	dn = doc.get("name")
+	if frappe.db.count('Payment Request', {'reference_name': dn}) > 0:
+		return
+	else:
+		try:
+			args ={}
+			args["dt"] = "Purchase Invoice"
+			args["dn"] = doc.get("name")
+			args["loyalty_points"] = ""
+			args["party_type"] = "Supplier"
+			args["party"]=doc.get("supplier")
+			args["payment_request_type"]="Outward"
+			args["transaction_date"]=date.today
+			args["return_doc"]=True
+			args["submit_doc"]=False
+			args["order_type"]="Purchase Invoice"
+			if args:
+				from erpnext.accounts.doctype.payment_request.payment_request import make_payment_request
+				payment_request_doc = make_payment_request(**args)
+				payment_request_doc.insert(ignore_permissions=True)
+				frappe.msgprint("Payment request {0} has been created successfully. ".format(payment_request_doc.get("name")))
+		except Exception as e:
+			frappe.msgprint("Operation could not be completed because of {0}"\
+				.format(e))
 	return
 def validate_invoices_in_po(doc , state):
 	workflow = get_workflow_name(doc.get('doctype'))
@@ -66,12 +70,18 @@ def validate_invoices_in_po(doc , state):
 			else:
 				total_po_amount = frappe.db.get_value("Purchase Order", purchase_order, 'total') or 0.0
 
-				invoices_list = frappe.db.get_all('Purchase Invoice Item', filters={
+				'''invoices_list = frappe.db.get_all('Purchase Invoice Item', filters={
 													'purchase_order': purchase_order
+
 													},
 													fields=['parent'],
 													group_by='parent',
-													as_list = False)
+													as_list = False)'''									
+				sql_to_run = f"""SELECT DISTINCT parent FROM `tabPurchase Invoice Item`\
+					WHERE purchase_order = '{purchase_order}'\
+						 AND parent IN (SELECT name FROM `tabPurchase Invoice`\
+							 WHERE workflow_state in ('Pending Payment Voucher', 'Credit Note'))"""
+				invoices_list = frappe.db.sql(sql_to_run, as_dict=True)
 				invoices_arr = [invoice.parent for invoice in invoices_list]
 
 				#frappe.throw("Purchase Order: {0}".format(invoices_arr))
@@ -94,8 +104,9 @@ def validate_invoices_in_po(doc , state):
 
 				#frappe.throw("Purchase Order: {0} Accepted Amount: {1} Returns: {2} for {3}".\
 				#	format(total_po_amount,total_accepted_amount[0].total, total_returns, invoices_arr))
-				
-				if(po == (ta + tr)):
+				this_invoice_total = doc.get("total") if doc.get("total")>0 else doc.get("total")*-1
+				if(po == (ta + tr+this_invoice_total)):
+					invoices_arr.append(doc.get("name"))
 					documents = [frappe.get_doc("Purchase Invoice", x) for x in invoices_arr]
 					documents_to_be_paid = [x for x in documents if x.get("is_return")==False]
 					list(map(lambda x: raise_payment_request(x, "Submitted"),documents_to_be_paid))

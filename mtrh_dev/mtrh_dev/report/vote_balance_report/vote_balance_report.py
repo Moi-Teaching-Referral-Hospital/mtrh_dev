@@ -363,7 +363,8 @@ def total_periodic_commitments(budget_against, account, fiscal_year, month):
 def total_invoices_for_pos(budget_against, account, fiscal_year, month):
 	return frappe.db.sql("""SELECT sum(coalesce(pii.amount,0)) AS total_amount 
 	FROM `tabPurchase Invoice Item` pii
-	WHERE pii.docstatus = 1 AND pii.po_detail IN
+	WHERE pii.parent IN (SELECT reference_name FROM `tabPayment Request`)\
+	 AND pii.po_detail IN
 		(SELECT poi.name
 		FROM `tabPurchase Order Item` poi
 		WHERE 
