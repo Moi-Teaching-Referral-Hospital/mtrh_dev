@@ -6,6 +6,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "status",
   "opening_terms",
   "section_break_2",
   "rfq_no",
@@ -13,6 +14,8 @@
   "procurement_method",
   "section_break_6",
   "respondents",
+  "bidders_invited",
+  "response",
   "column_break_8",
   "opening_status",
   "section_break_10",
@@ -31,6 +34,7 @@
   "section_break_4",
   "invited_bidders",
   "bids",
+  "add_bidding_schedule",
   "ad_hoc_committee_members_section",
   "adhoc_members",
   "preliminary_evaluation_section",
@@ -73,7 +77,7 @@
    "fieldname": "procurement_method",
    "fieldtype": "Select",
    "label": "Procurement Method",
-   "options": "-\nRequest for Quotation\nOpen Tender\nClosed Tender",
+   "options": "-\nRequest for Quotation\nOpen Tender\nClosed Tender\nLow Value Procurement\nDirect Procurement",
    "show_days": 1,
    "show_seconds": 1
   },
@@ -99,10 +103,12 @@
    "show_seconds": 1
   },
   {
-   "default": "-",
+   "default": "Sealed",
    "fieldname": "opening_status",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Opening Status",
+   "options": "Sealed\nOpened",
    "read_only": 1,
    "show_days": 1,
    "show_seconds": 1
@@ -277,6 +283,7 @@
    "fieldname": "time_of_opening",
    "fieldtype": "Time",
    "label": "Time of Opening",
+   "read_only": 1,
    "show_days": 1,
    "show_seconds": 1
   },
@@ -296,7 +303,7 @@
    "fieldname": "recommendation",
    "fieldtype": "Select",
    "label": "Recommendation",
-   "options": "Proceed With Evaluation\nRetender Entire Process\nTerminate Procurement Cycle",
+   "options": "Proceed With Evaluation\nRetender/Refloat Entire Process\nTerminate Procurement Cycle\nExtend Expiry period",
    "show_days": 1,
    "show_seconds": 1
   },
@@ -343,11 +350,49 @@
    "options": "Request For Quotation Adhoc Committee",
    "show_days": 1,
    "show_seconds": 1
+  },
+  {
+   "default": "Sealed",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Sealed\nOpened",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "depends_on": "eval:doc.docstatus ==1",
+   "fieldname": "add_bidding_schedule",
+   "fieldtype": "Button",
+   "label": "Add Bidding Schedule",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "bidders_invited",
+   "fieldtype": "Int",
+   "label": "Bidders Invited",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "response",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Response Rate",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-10-05 16:17:37.152440",
+ "modified": "2020-10-15 12:05:50.872978",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Opening",
@@ -376,11 +421,11 @@
    "report": 1,
    "role": "Procurement Secretariat Officer",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
    "create": 1,
-   "delete": 1,
    "email": 1,
    "export": 1,
    "print": 1,

@@ -452,32 +452,39 @@ def stage_supplier_email(doc, state):
 			sq_doc.run_method("set_missing_values")
 			sq_doc.insert()
 def dispatch_staged_email(doc , state):
+	if not '-EX-' not in doc.get("reference_name"):
+		doc.set("status","Not to be sent")
+		doc.save()
 	if doc.get("status") not in ["Sent"] and '-EX-' not in doc.get("reference_name"):
-		doc2send = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
-		doc.flags.ignore_permissions = True
-		doc.run_method("set_missing_values")
-		documenttype = doc2send.get("doctype")
-		documentname = doc2send.get("name")
-		supplier_email = doc.get("supplier_email")
-		#regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
-		message = doc.get("message")	
-		if supplier_email and message:
-			#if re.search(regex, supplier_email.strip()):
-			if '@' in supplier_email and '.' in supplier_email:
-				doc.set("status", "Sent")
-				doc.set("supplier_email", supplier_email.strip())
-				doc.save()
-				
-				send_notifications([supplier_email.strip()], f"{message}",\
-						f"{documenttype} - {documentname}",
-							doc2send.get("doctype"),doc2send.get("name"))
-				update_supplier_contact_custom(doc.get("supplier"), supplier_email.strip(), None)
-			else:
-				doc.set("status","Failed")
-				doc.save()
+		dispatch_transaction(doc)
+@frappe.whitelist()
+def dispatch_transaction(document=None, docname =None):
+	doc = document or frappe.get_doc("Document Email Dispatch", docname)
+	doc2send = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
+	doc.flags.ignore_permissions = True
+	doc.run_method("set_missing_values")
+	documenttype = doc2send.get("doctype")
+	documentname = doc2send.get("name")
+	supplier_email = doc.get("supplier_email")
+	#regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
+	message = doc.get("message")	
+	if supplier_email and message:
+		#if re.search(regex, supplier_email.strip()):
+		if '@' in supplier_email and '.' in supplier_email:
+			doc.set("status", "Sent")
+			doc.set("supplier_email", supplier_email.strip())
+			doc.save()
+			
+			send_notifications([supplier_email.strip()], f"{message}",\
+					f"{documenttype} - {documentname}",
+						doc2send.get("doctype"),doc2send.get("name"))
+			update_supplier_contact_custom(doc.get("supplier"), supplier_email.strip(), None)
 		else:
 			doc.set("status","Failed")
 			doc.save()
+	else:
+		doc.set("status","Failed")
+		doc.save()
 	return
 def create_supplier_account(supplier_name, email):
 	if '@' in email and '.' in email:
@@ -494,8 +501,9 @@ def create_supplier_account(supplier_name, email):
 				user.save(ignore_permissions=True)
 		else:
 			user = frappe.get_doc("User", email)
-			user.role_profile_name = 'Supplier Profile'
-			user.save(ignore_permissions=True)
+			if(user.get("role_profile_name") != 'Supplier Profile'):
+				user.role_profile_name = 'Supplier Profile'
+				user.save(ignore_permissions=True)
 def set_supplier_profile(doc, state):
 	links =doc.get("links")
 	if links:
@@ -505,8 +513,8 @@ def set_supplier_profile(doc, state):
 		if "Supplier" in link_doctypes and userid:
 			create_supplier_account(supplier_name, userid)
 			doc.set("user",userid)
-			doc.flags.ignore_permissions=True
-			doc.save
+			#doc.flags.ignore_permissions=True
+			#doc.save
 def update_supplier_contact_link_cron():
 	rfqs_on_dispatch = frappe.db.sql(f"""SELECT reference_doctype, reference_name\
 		 FROM `tabDocument Email Dispatch`\
@@ -647,3 +655,52 @@ def create_grn_qualityinspectioncert_debitnote_creditnote(doc, state):
 		updatepurchasereceiptstatus2 =frappe.db.sql("""UPDATE `tabPurchase Receipt` set bill_date=now(),status="To Bill",docstatus=1 where name=%s""",(docname))
 		updatepurchasereceiptitem2 =frappe.db.sql("""UPDATE `tabPurchase Receipt Item` set docstatus=1 where name=%s""",(purchasereceiptitemname))
 	'''
+def update_member_list_on_opening_drafts(doc , state):
+	opening_members = doc.get("adhoc_members")
+	import random , string
+	if opening_members:
+		#letters = string.ascii_lowercase
+		#random_id =''.join(random.choice(letters) for i in range(8)) 
+		#opening_members.name = random_id
+		#opening_members.user_password=opening_members.user
+		#GET ALL DRAFT OPENING DOCS
+		pending_sql =f"""SELECT name FROM `tabTender Quotation Opening` WHERE\
+			docstatus = 0"""
+		pending_docs = frappe.db.sql(pending_sql , as_dict=True)
+		if pending_docs:
+			documents = [frappe.get_doc("Tender Quotation Opening", x.get("name")) for x in pending_docs]
+			list(map(lambda x: clear_and_update_drafts(x,opening_members), documents))
+def clear_and_update_drafts(doc, new_members):
+	#CONTEXT: TQ Opening
+	doc.flags.ignore_permissions = True
+	#doc.db_set('adhoc_members', [])
+	the_new_members = [x.get("employee_name") for x in new_members]
+	#memberlist = doc.append("adhoc_members",{})
+	for d in doc.get("adhoc_members"):
+		if d.get("employee_name") in the_new_members or d.get("logged_in")==False:
+			rowid = d.get("name")
+			frappe.db.sql(f"DELETE FROM `tabRequest For Quotation Adhoc Committee`\
+				 WHERE name ='{rowid}'")
+	for m in new_members:
+		memberlist = doc.append("adhoc_members",{})
+		memberlist.user = m.get("user")
+		memberlist.employee_name = m.get("employee_name")
+		memberlist.user_mail = m.get("user_mail")
+		memberlist.logged_in = False
+		memberlist.user_password = m.get("user")
+	docname = doc.get("name")
+	doc.save()
+	doc = frappe.get_doc("Tender Quotation Opening", docname)
+	idx =1
+	for m in doc.get("adhoc_members"):
+		if not m.get("user"):
+			rowid = m.get("name")
+			frappe.db.sql(f"DELETE FROM `tabRequest For Quotation Adhoc Committee`\
+				 WHERE name ='{rowid}'")
+		else:
+			m.idx = idx
+			idx+=1
+	doc.save()
+	doc.notify_update()
+	
+	

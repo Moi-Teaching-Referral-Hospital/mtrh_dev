@@ -134,8 +134,7 @@ doc_events = {
 	},
 	"Tender Quotation Award":{
 		#"before_save":"mtrh_dev.mtrh_dev.tender_quotation_utils.submit_manually_entered_tqas",
-		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.\
-			tender_quotation_award.update_price_list"
+		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
 		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt",
@@ -213,6 +212,21 @@ doc_events = {
 	},
 	"Contact":{
 		"before_save":"mtrh_dev.mtrh_dev.tqe_evaluation.set_supplier_profile"
+	},
+	"Bid Evaluation Committee":{
+		"before_save":"mtrh_dev.mtrh_dev.tqe_evaluation.update_member_list_on_opening_drafts"
+	},
+	"Procurement Professional Opinion":{
+		"before_save":"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_bid_schedule_save_operations"
+#		"before_submit":"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_bid_schedule_submit_operations"
+	},
+	"Task":{
+		"before_save":"mtrh_dev.mtrh_dev.tasks.task_save_operations",
+		"on_update":"mtrh_dev.mtrh_dev.tasks.update_task_report"
+	},
+	"Task Duplicator":{
+		"before_submit":"mtrh_dev.mtrh_dev.tasks.task_duplicator",
+		#"on_update":"mtrh_dev.mtrh_dev.tasks.update_task_report"
 	}
 }
 
@@ -238,15 +252,8 @@ doc_events = {
 
 scheduler_events = {
 	"cron": {
-		"* * * * *": [
-			"frappe.email.queue.flush",
-			"frappe.email.doctype.email_account.email_account.pull",
-			"frappe.email.doctype.email_account.email_account.notify_unreplied",
-			"frappe.monitor.flush",
-			"mtrh_dev.mtrh_dev.purchase_receipt_utils.delivery_completed_status"
-		],
-		"20 14 * * *": [
-			"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
+		"5 * * * *": [
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.professional_opinion_to_award_cron"
 		]
 	},
 	"all": [

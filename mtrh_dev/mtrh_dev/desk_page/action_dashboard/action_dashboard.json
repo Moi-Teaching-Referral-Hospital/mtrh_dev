@@ -1,7 +1,11 @@
 {
  "cards": [],
  "category": "Modules",
- "charts": [],
+ "charts": [
+  {
+   "chart_name": "Bottleneck Leaderboard (Hours) - Average Time to Act"
+  }
+ ],
  "creation": "2020-08-13 23:51:30.289718",
  "developer_mode_only": 0,
  "disable_user_customization": 1,
@@ -12,7 +16,7 @@
  "idx": 0,
  "is_standard": 1,
  "label": "Action Dashboard",
- "modified": "2020-09-30 10:43:12.360826",
+ "modified": "2020-10-23 13:30:51.400445",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Action Dashboard",

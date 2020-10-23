@@ -140,7 +140,8 @@ def log_sms(response, payload):
 					"requested_numbers":recipient,
 					"sent_on": frappe.utils.data.now_datetime(),
 					"no_of_requested_sms": 0,
-					"no_of_sent_sms":0
+					"no_of_sent_sms":0,
+					"status": "Sent"
 				}
 			)
 		sms_entry_doc.insert(ignore_permissions=True)

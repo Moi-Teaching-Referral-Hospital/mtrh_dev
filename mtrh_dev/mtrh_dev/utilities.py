@@ -153,7 +153,7 @@ def create_rfq_items(sq_doc, supplier, data):
 #====================================================================================================================================================
 # ADD IMPORTANT ACTION LOGS TO DOCUMENTS. THESE LOGS CAN THEN BE AVAILABLE ON PRINT MODE TO TRACK APPROVALS AND DECISIONS ON DOCUMENTS.
 #====================================================================================================================================================
-def process_workflow_log(doc, state):
+def process_workflow_log(doc, state): 
 	this_doc_workflow_state = ""
 	if state == "before_save":
 		workflow = get_workflow_name(doc.get('doctype'))
@@ -188,6 +188,10 @@ def process_workflow_log(doc, state):
 			#frappe.msgprint("Logging: " + get_doc_workflow_state(doc))
 			if is_workflow_action_already_created(doc): return
 			else:	create_quality_inspection(doc)
+	if this_doc_workflow_state == "Draft":
+		#REMOVE ALL WORKFLOW ACTION STATES.
+		doc_name = doc.get("name")
+		frappe.db.sql(f"""DELETE FROM `tabWorkflow Action` WHERE reference_name = '{doc_name}' AND name != '1'""")
 def most_recent_decision(docname):
 	decision = frappe.db.sql("""SELECT decision FROM `tabApproval Log` where parent = %s ORDER BY creation DESC LIMIT 1""",(docname))
 	decision_to_return = ""
@@ -519,7 +523,7 @@ def alert_user_on_message(doc, state):
 		frappe.publish_realtime(event='msgprint',message = the_message, user = user.get("user"))
 		if(source_user == "Administrator"):
 			message_out = _("""Dear {0}, You have a message from MTRH Enterprise Portal: {1}.""").format(target_user, doc.get("content"))
-			send_sms_to_user(user.get("user"), message_out)
+			schedule_sms_to_user(user.get("user"), message_out)
 		
 #====================================================================================================================================================
 # RETURNS A PHONE NUMBER OF A USER WHEN THEIR USER ID/EMAIL IS PASSED.																				=
@@ -561,9 +565,54 @@ def send_sms_to_user(userid, message):
 		#frappe.response["data"] = data
 		incoming_payload.append(data.copy())
 		send_sms_alert(json.dumps(incoming_payload))
-		print(_("""User {0} has been alerted through SMS""").format(userid))
+		#print(_("""User {0} has been alerted through SMS""").format(userid))
 		frappe.msgprint(_("""User {0} has been alerted through SMS""").format(userid))
 	return
+
+@frappe.whitelist()
+def schedule_sms_to_user(userid, sms_message):
+	phone = get_user_phonenumber(userid)
+	sms_log = frappe.get_doc({
+		"doctype": "SMS Log",
+		"sender_name": "MTRH Bulk SMS",
+		"message":sms_message,	
+		"requested_numbers":phone,
+		"no_of_requested_sms": 0,
+		"no_of_sent_sms":0,
+		"status": "Scheduled"
+	})
+	sms_log.flags.ignore_permissions=True
+	sms_log.flags.ignore_links=True
+	sms_log.insert()
+	frappe.msgprint(_("""User {0} will be alerted through SMS""").format(userid))
+	return
+
+def send_scheduled_sms_cron():
+	scheduled_sms = frappe.db.get_all("SMS Log",
+		filters={
+				"status": 'Scheduled'
+			},
+			fields=["requested_numbers", "message", "name"],
+			ignore_permissions = True,
+			as_list=False
+		)
+	for sms in scheduled_sms:
+		incoming_payload =[]
+		data = {
+			"phone": sms.get("requested_numbers"),
+			"message": sms.get("message")
+		}
+		incoming_payload.append(data.copy())
+		send_sms_alert(json.dumps(incoming_payload))
+		#print(_("""User {0} has been alerted through SMS""").format(userid))
+		#frappe.msgprint(_("""User {0} has been alerted through SMS""").format(userid))
+	#SET ALL SMS TO SENT.
+	sms_names = [x.get("name") for x in scheduled_sms]
+	sms_names_str = '('+','.join("'{0}'".format(i) for i in sms_names)+')'
+	sql_upd_sms = f"UPDATE `tabSMS Log` SET status = 'Processed' WHERE `name` IN {sms_names_str}"
+	frappe.db.sql(sql_upd_sms)
+	return
+
 #====================================================================================================================================================
 # ALERT USERS ON A NEW WORKFLOW ACTION CREATED.	
 #====================================================================================================================================================
@@ -574,7 +623,7 @@ def alert_user_on_workflowaction(doc, state):
 	workflow_state = doc.get('workflow_state')
 	if(workflow_state != "Approved"):
 		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Check all your pending work here: https://bit.ly/2F8E18L""").format(reference_doctype, reference_name)
-		send_sms_to_user(theuser, message_out)
+		schedule_sms_to_user(theuser, message_out)
 	return
 @frappe.whitelist()
 def return_approval_routes(department):
@@ -631,10 +680,9 @@ def send_comment_sms(doc,state):
 
 		if not mentions:
 			return
-
 		sender_fullname = get_fullname(frappe.session.user)
 		#title = get_title(doc.reference_doctype, doc.reference_name)
-
+		reference_document = frappe.get_doc(doc.reference_doctype, doc.reference_name)
 		recipients = [frappe.db.get_value("User", {"enabled": 1, "name": name, "user_type": "System User", "allowed_in_mentions": 1}, "email")
 			for name in mentions]
 		"""notification_message = _('''{0} mentioned you in a comment in {1} [{2}] please log in to your portal or corporate email account view and respond to the comment''')\
@@ -648,10 +696,11 @@ def send_comment_sms(doc,state):
 		content_to_send =  (filtered_content[:720] + '...') if len(filtered_content) > 720 else filtered_content
 
 		notification_message = _('''{0}:  REF: [{1} - {2}]\n{3}''')\
-			.format(sender_fullname, doc.reference_doctype, doc.get("name"), content_to_send)
+			.format(sender_fullname, doc.reference_doctype, reference_document.get("name"),\
+				 content_to_send)
 		for recipient in recipients:
-			send_sms_to_user(recipient, notification_message)
-			frappe.msgprint(f"User {recipient} notified via SMS.")
+			#frappe.msgprint(f"User {recipient} notified via SMS. - {notification_message}")
+			schedule_sms_to_user(recipient, notification_message)
 def check_purchase_receipt_before_save(doc, state):
 	if is_workflow_action_already_created(doc): return
 	else:
@@ -820,6 +869,47 @@ def return_budget_dict(dimension,dimension_name,account):
 	return data_to_return
 
 @frappe.whitelist()
+def return_budget_all_dict(account):
+	from frappe.desk.query_report import run
+	report_name ="Vote Balance Report"
+	filters ={
+		"from_fiscal_year":frappe.defaults.get_user_default("fiscal_year"),
+		"to_fiscal_year":frappe.defaults.get_user_default("fiscal_year"),
+		"period":"Quarterly",
+		"company":frappe.defaults.get_user_default("Company"),
+		"budget_against": "Department"
+		}
+	pl = run(report_name, filters)
+	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
+	from datetime import datetime
+	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
+	this_month = datetime.today().month
+	month_diff = this_month - year_start_month
+	if ((month_diff) <0): month_diff = month_diff * -1
+	#FOR THE RESPECTIVE QUARTERS, DATA IS need[0] - | 2, 3, 4, 5 | 6, 7, 8, 9 | 10, 11, 12, 13| 14, 15, 16, 17| THEN TOTAL 18, 19, 20, 21
+	quarter_budget, quarter_actual, quarter_commit, quarter_balance = 2, 3, 4, 5
+	if month_diff < 3 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 2, 3, 4, 5
+	elif month_diff < 6 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 6, 7, 8, 9
+	elif month_diff < 9 :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 10, 11, 12, 13
+	else :
+		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 14, 15, 16, 17
+	data_to_return = {}
+	if need and need[0]:
+		single_row = need[0]
+		data_to_return['q_budget'] = single_row[quarter_budget]
+		data_to_return['q_actual'] = single_row[quarter_actual]
+		data_to_return['q_commit'] = single_row[quarter_commit]
+		data_to_return['q_balance'] = single_row[quarter_balance]
+		data_to_return['t_budget'] = single_row[18]
+		data_to_return['t_actual'] = single_row[19]
+		data_to_return['t_commit'] = single_row[20]
+		data_to_return['t_balance'] = single_row[21]
+	return data_to_return
+
+@frappe.whitelist()
 def get_votehead_balance(document_type, document_name):
 	doc = frappe.get_doc(document_type, document_name)
 	doc.flags.ignore_permissions = True
@@ -863,6 +953,8 @@ def get_votehead_balance(document_type, document_name):
 			doc.flags.ignore_permissions = True
 			doc.save()
 			doc.notify_update()
+		from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
+		vote_statement+= document_dashboard(document_type, document_name)
 		return vote_statement
 	elif document_type=="Payment Request":
 		#GET ASSOCIATED PURCHASE ORDER.
@@ -908,11 +1000,13 @@ def get_votehead_balance(document_type, document_name):
 		vote_statement += "<tr><td><b>Balance After</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_balance_after, annual_balance_after)
 		vote_statement += "</table>"
 		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
-		if doc.get("docstatus") == 0:
+		if not doc.get("vote_statement") and doc.get("docstatus") == 0:
 			doc.set("vote_statement", vote_statement)
 			doc.flags.ignore_permissions = True
 			doc.save()
 			doc.notify_update()
+		from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
+		vote_statement+= document_dashboard(document_type, document_name)
 		return vote_statement
 	elif document_type=="Material Request":
 		pass
@@ -1055,10 +1149,13 @@ def update_sq(docname=None):
 
 def log_time_to_action(doc, state):
 	#VALIDATE THAT IT IS A WORKFLOW TRANSITION.
+	workflow_name = get_workflow_name(doc.get('doctype'))
+	if not workflow_name:
+		return
 	new_workflow_state = get_doc_workflow_state(doc)
 	if not new_workflow_state:
 		return
-	old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
+	old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state') if doc.get('workflow_state') else None
 	if (old_workflow_state and new_workflow_state) and old_workflow_state != new_workflow_state:
 		#WORKFLOW STATE CHANGED. LETS PROCEED.
 		actions = frappe.db.get_all('Workflow Action',
@@ -1088,4 +1185,42 @@ def log_time_to_action(doc, state):
 			time_to_action.flags.ignore_links=True
 			time_to_action.insert()
 	return
-	
+
+@frappe.whitelist()
+def create_user(employee, user = None, email=None):
+	emp = frappe.get_doc("Employee", employee)
+
+	employee_name = emp.employee_name.split(" ")
+	middle_name = last_name = ""
+
+	if len(employee_name) >= 3:
+		last_name = " ".join(employee_name[2:])
+		middle_name = employee_name[1]
+	elif len(employee_name) == 2:
+		last_name = employee_name[1]
+
+	first_name = employee_name[0]
+
+	if email:
+		emp.prefered_email = email
+
+	user = frappe.new_doc("User")
+	user.update({
+		"name": emp.employee_name,
+		"email": emp.prefered_email,
+		"enabled": 1,
+		"first_name": first_name,
+		"middle_name": middle_name,
+		"last_name": last_name,
+		"gender": emp.gender,
+		"birth_date": emp.date_of_birth,
+		"phone": emp.cell_number,
+		"bio": emp.bio
+	})
+	user.flags.ignore_permissions = True
+	user.insert()
+	return user.name
+@frappe.whitelist()
+def return_applicable_document_template(doctype):
+	return frappe.db.sql(f"""SELECT DISTINCT applicable_for\
+		 FROM `tabDocument Template Doctype` WHERE parent ='{doctype}'""", as_dict=True)

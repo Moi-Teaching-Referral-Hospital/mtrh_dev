@@ -1,60 +1,257 @@
 {
  "actions": [],
- "allow_import": 1,
- "allow_rename": 1,
- "autoname": "field:title",
- "creation": "2020-09-20 21:47:19.985502",
+ "autoname": "PUR-BID-.YYYY.-.####",
+ "creation": "2020-10-08 16:30:45.265485",
  "doctype": "DocType",
- "document_type": "Setup",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "title",
-  "disabled",
-  "section_break_7",
-  "terms",
-  "template_help"
+  "reference_number",
+  "request_for_quotation",
+  "column_break_3",
+  "procurement_value",
+  "rfq_approval",
+  "column_break_6",
+  "number_of_rfqs_issued",
+  "number_of_rfqs_received",
+  "section_break_9",
+  "purpose_of_request",
+  "reason_for_procurement",
+  "votebook_details_section",
+  "vote_balance",
+  "votebook_information",
+  "procurement_professional_opinion_section",
+  "opinion_template",
+  "procurement_opinion",
+  "bidding_schedule_section",
+  "award_all_direct_purchase",
+  "supplier_bid_schedule",
+  "bidding_schedule",
+  "award_schedule_section",
+  "award_schedule",
+  "amended_from",
+  "ceo_remarks",
+  "reevaluate"
  ],
  "fields": [
   {
-   "fieldname": "title",
-   "fieldtype": "Data",
-   "label": "Title",
-   "no_copy": 1,
-   "oldfieldname": "title",
-   "oldfieldtype": "Data",
-   "reqd": 1,
-   "unique": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "disabled",
-   "fieldtype": "Check",
+   "fieldname": "reference_number",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Disabled"
+   "label": "Reference Number",
+   "options": "Tender Quotation Opening",
+   "read_only": 1,
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
-   "fieldname": "section_break_7",
-   "fieldtype": "Section Break"
+   "fieldname": "request_for_quotation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Request for Quotation",
+   "options": "Request for Quotation",
+   "read_only": 1,
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
-   "allow_in_quick_entry": 1,
-   "fieldname": "terms",
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0.0",
+   "fieldname": "procurement_value",
+   "fieldtype": "Currency",
+   "label": "Procurement Value",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "bold": 1,
+   "description": "Date of Approval by Accounting Officer - CEO",
+   "fieldname": "rfq_approval",
+   "fieldtype": "Date",
+   "label": "Accounting Officer  Approval of RFQ",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "number_of_rfqs_issued",
+   "fieldtype": "Data",
+   "label": "Number of RFQs Issued",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "number_of_rfqs_received",
+   "fieldtype": "Data",
+   "label": "Number of RFQs Received",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "votebook_details_section",
+   "fieldtype": "Section Break",
+   "label": "Votebook Details",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "vote_balance",
+   "fieldtype": "Currency",
+   "label": "Vote Balance",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "votebook_information",
    "fieldtype": "Text Editor",
-   "in_global_search": 1,
-   "label": "Professional Opinion",
-   "oldfieldname": "terms",
-   "oldfieldtype": "Text Editor"
+   "label": "Votebook Information",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
-   "fieldname": "template_help",
-   "fieldtype": "HTML",
-   "label": "Template Help",
-   "options": "<h4>PROCUREMENT PROFESSIONAL OPINION</h4>\n\n<pre>Professional opinion for RFQ number {{ name }}\n-Mode of Procurement: {{procurement_method}}\n-Expiry Date : {{ transaction_date }} \n-Procurement Value : {{ procurement_value}}\n</pre>\n\n<h4>How to get fieldnames</h4>\n\n<p>The fieldnames you can use in your email template are the fields in the document from which you are sending the email. You can find out the fields of any documents via Setup &gt; Customize Form View and selecting the document type (e.g. Sales Invoice)</p>\n\n<h4>Templating</h4>\n\n<p>Templates are compiled using the Jinja Templating Language. To learn more about Jinja, <a class=\"strong\" href=\"http://jinja.pocoo.org/docs/dev/templates/\">read this documentation.</a></p>"
+   "fieldname": "procurement_professional_opinion_section",
+   "fieldtype": "Section Break",
+   "label": "Procurement Professional Opinion",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "opinion_template",
+   "fieldtype": "Link",
+   "label": "Opinion Template",
+   "options": "Document Template",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "procurement_opinion",
+   "fieldtype": "Text Editor",
+   "label": "Procurement Opinion",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "bidding_schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Bid Schedule",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "award_all_direct_purchase",
+   "fieldtype": "Button",
+   "label": "Award All (Direct Purchase)",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "supplier_bid_schedule",
+   "fieldtype": "Heading",
+   "label": "Supplier Bid Schedule",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "description": "Bid Price Schedule",
+   "fieldname": "bidding_schedule",
+   "fieldtype": "Table",
+   "label": "Bidding Schedule",
+   "options": "Bid Price Schedule Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "award_schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Award Schedule",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "description": "Award Schedule",
+   "fieldname": "award_schedule",
+   "fieldtype": "Table",
+   "label": "Award Schedule",
+   "options": "Award Price Schedule Item",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Procurement Professional Opinion",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "ceo_remarks",
+   "fieldtype": "Text",
+   "label": "CEO Remarks",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "depends_on": "eval:doc.docstatus ==1",
+   "fieldname": "reevaluate",
+   "fieldtype": "Button",
+   "label": "Re-Evaluate",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "bold": 1,
+   "description": "e.g Where services, items are to be used. Or Reason for the request(s)",
+   "fieldname": "reason_for_procurement",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Reason for Procurement",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "description": "e.g. Where services, items are to be used. Or Reason for the request(s)",
+   "fieldname": "section_break_9",
+   "fieldtype": "Section Break",
+   "label": "Purpose of Items Requested",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "purpose_of_request",
+   "fieldtype": "Text Editor",
+   "label": "Purpose of Request",
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
- "icon": "icon-legal",
+ "is_submittable": 1,
  "links": [],
- "modified": "2020-09-20 21:55:18.183759",
+ "modified": "2020-10-23 15:51:39.504083",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Procurement Professional Opinion",
@@ -65,26 +262,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "import": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Sales Master Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "Sales User"
-  },
-  {
-   "read": 1,
-   "role": "Purchase User"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -96,29 +273,54 @@
    "create": 1,
    "delete": 1,
    "email": 1,
+   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Accounts User",
+   "role": "Procurement Secretariat Officer",
    "share": 1,
    "write": 1
   },
   {
-   "read": 1,
-   "role": "Stock User"
-  },
-  {
+   "create": 1,
+   "delete": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "All",
-   "share": 1
+   "role": "Purchase Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Supply Chain Management",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Chief Executive Officer",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   }
  ],
  "quick_entry": 1,
- "show_name_in_global_search": 1,
  "sort_field": "modified",
- "sort_order": "ASC"
+ "sort_order": "DESC",
+ "track_changes": 1
 }

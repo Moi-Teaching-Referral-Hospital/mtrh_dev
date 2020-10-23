@@ -12,11 +12,12 @@ from frappe.utils import get_url, cint
 from frappe.utils.background_jobs import enqueue
 from frappe import msgprint
 from frappe.model.document import Document
-import datetime
+
 from frappe.utils import cint, flt, cstr, now
 from datetime import date, datetime
 from erpnext.buying.doctype.request_for_quotation.request_for_quotation import send_supplier_emails
 from erpnext.stock.utils import get_stock_balance
+import datetime
 import psycopg2
 class TQE(Document):
 	pass
@@ -41,3 +42,5 @@ def get_patient_dict(key):
 	#from bson import json_util
 	frappe.response["response"] = rows
 	conn.close()
+def send_eleave_returns():
+	pass

@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "creation": "2020-10-06 09:52:01.609309",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "instructions",
+  "login_required",
+  "adhoc_members"
+ ],
+ "fields": [
+  {
+   "fieldname": "instructions",
+   "fieldtype": "HTML",
+   "label": "Instructions",
+   "options": "<h3>How to use this form</h3>\n<p><b>Delete</b> All Members to remove the entire list</p>\n<p><b>Delete</b> to remove one member</p>\n<p><b>Add row</b> to add one member</p>",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "adhoc_members",
+   "fieldtype": "Table",
+   "label": "Adhoc Members",
+   "options": "Bid Evaluation Members",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "login_required",
+   "fieldtype": "Check",
+   "label": "Login Mandatory?",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2020-10-07 16:31:27.825971",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Bid Evaluation Committee",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

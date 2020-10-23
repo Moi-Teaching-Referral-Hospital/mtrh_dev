@@ -322,7 +322,7 @@ def reroute_rfq_item(docname , item_ids):
 			mrdata = frappe.get_doc("Material Request Item", docname)
 			items2raise.append(mrdata)
 		#None, items2raise,doc.get("buyer_section"),frappe.defaults.get_user_default("Company")
-		raise_new_rfq(None, items2raise,doc.get("buyer_section"),frappe.defaults.get_user_default("Company"))
+		raise_new_rfq(None, items2raise, doc.get("buyer_section"),frappe.defaults.get_user_default("Company"))
 		delete_items = f"DELETE FROM `tabRequest for Quotation Item` WHERE name IN {item_ids_str}"
 		frappe.db.sql(delete_items)
 		doc.notify_update
@@ -384,15 +384,16 @@ def prequalified_suppliers_list(item_category):
 def raise_stock_entry(doc, items):
 	pass
 def set_attended_to(doc, items, action=None):
-	docname = doc.get("name")
-	items_str = '('+','.join("'{0}'".format(i) for i in items)+')'
-	action_string =f" SET attended_to ='1' "
-	if action:
-		action_string = f"SET attended_to ='{action}'"
-	update_action_query = f"UPDATE `tabMaterial Request Item` {action_string}\
-		 WHERE parent = '{docname}' AND item_code IN {items_str};"
-	frappe.db.sql(update_action_query)
-	doc.notify_update()
+	if doc:
+		docname = doc.get("name")
+		items_str = '('+','.join("'{0}'".format(i) for i in items)+')'
+		action_string =f" SET attended_to ='1' "
+		if action:
+			action_string = f"SET attended_to ='{action}'"
+		update_action_query = f"UPDATE `tabMaterial Request Item` {action_string}\
+			WHERE parent = '{docname}' AND item_code IN {items_str};"
+		frappe.db.sql(update_action_query)
+		doc.notify_update()
 def compute_percentage_attended_to(doc):
 	pass
 @frappe.whitelist()		

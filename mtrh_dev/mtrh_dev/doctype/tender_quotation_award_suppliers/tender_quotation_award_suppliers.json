@@ -1,4 +1,5 @@
 {
+ "actions": [],
  "creation": "2020-05-21 23:06:21.276577",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -7,7 +8,10 @@
   "supplier_name",
   "item_uom",
   "unit_price",
-  "awarded_bidder"
+  "awarded_bidder",
+  "quantity",
+  "amount",
+  "supplier_quotation"
  ],
  "fields": [
   {
@@ -16,7 +20,9 @@
    "in_list_view": 1,
    "label": "Supplier Name",
    "options": "Supplier",
-   "reqd": 1
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "item_uom",
@@ -24,14 +30,18 @@
    "in_list_view": 1,
    "label": "Item UOM",
    "options": "UOM",
-   "reqd": 1
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "fieldname": "unit_price",
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Unit Price",
-   "reqd": 1
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
   },
   {
    "default": "0",
@@ -39,11 +49,39 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Awarded bidder",
-   "reqd": 1
+   "reqd": 1,
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0.0",
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "default": "0.0",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "supplier_quotation",
+   "fieldtype": "Link",
+   "label": "Reference Supplier Quotation",
+   "options": "Supplier Quotation",
+   "read_only": 1,
+   "show_days": 1,
+   "show_seconds": 1
   }
  ],
  "istable": 1,
- "modified": "2020-05-22 00:47:54.274460",
+ "links": [],
+ "modified": "2020-10-12 12:43:19.705806",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Award Suppliers",

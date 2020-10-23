@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2020-10-16 12:09:21.675329",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "disabled",
+  "section_break_7",
+  "part_a",
+  "template_help"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "no_copy": 1,
+   "oldfieldname": "title",
+   "oldfieldtype": "Data",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "part_a",
+   "fieldtype": "Text Editor",
+   "label": "Part A",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "template_help",
+   "fieldtype": "HTML",
+   "label": "Template Help",
+   "options": "<h4>The fields below are available to you and you can copy and paste anywhere in the template. Ensure you adhere to the format strictly</h4>\n\n<pre>Name of MTRH - <b>{procuring_entity}</b><br>\nRequest for Quotation Number\t- <b>{quotation_no}</b><br>\nDate of Invite\t- <b>{date_invite}</b><br>\nDate of Opening\t- <b>{date_opened}</b><br>\nOpening Members\t- <b>{adhoc_members}</b><br>\nTechnical Evaluation Members\t- <b>{opening_members}</b><br>\nItem Code\t- <b>{first_item_code}</b> (Single Item)<br>\nDepartment\t- <b>{department}</b> (Single Item, Single Department)<br>\nAwarded Bidder\t- <b>{awarded_bidder}</b><br>\nDate of Invite/RFQ Approval\t- <b>{rfq_approval_date}</b><br>\nDate of Opening\t- <b>{opening_date}</b><br>\nBudget Available for Vote\t- <b>{budget_amount}</b><br>\nName fo the Vote\t- <b>{vote_name}</b><br>\nItem Name/Description\t- <b>{item_name}</b><br>\nCummulative Sum Awarded\t- <b>{cummulative_sum}</b><br>\nNumber of Invited RFQs/Bidders in words and numbers\t- <b>{registered_bidders}</b><br>\nNumber of respondent RFQs/Bids in words and numbers\t- <b>{no_of_bidders}</b><br>\n</pre>"
+  }
+ ],
+ "icon": "icon-legal",
+ "links": [],
+ "modified": "2020-10-16 12:09:21.675329",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Standard Template",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Master Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales User"
+  },
+  {
+   "read": 1,
+   "role": "Purchase User"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Stock User"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1
+  }
+ ],
+ "quick_entry": 1,
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "ASC"
+}

@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "creation": "2020-10-22 00:10:27.865691",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "dependent_task",
+  "subject",
+  "group_tasks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "dependent_task",
+   "fieldtype": "Link",
+   "label": "Dependent Task",
+   "options": "Task",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "group_tasks",
+   "fieldtype": "Table",
+   "label": "Group Tasks",
+   "options": "Task Duplicator Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Task Duplicator",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "dependent_task.subject",
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-10-22 08:31:25.590253",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Task Duplicator",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

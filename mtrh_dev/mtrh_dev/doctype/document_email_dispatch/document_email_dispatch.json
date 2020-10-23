@@ -50,7 +50,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Failed\nPending\nOn Hold",
+   "options": "Failed\nPending\nOn Hold\nNot to be sent",
    "show_days": 1,
    "show_seconds": 1
   },
@@ -90,7 +90,7 @@
   }
  ],
  "links": [],
- "modified": "2020-09-16 14:56:39.357782",
+ "modified": "2020-10-23 16:51:05.285319",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Document Email Dispatch",

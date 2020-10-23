@@ -6,5 +6,5 @@ from __future__ import unicode_literals
 # import frappe
 import unittest
 
-class TestTenderQuotationAward(unittest.TestCase):
+class TestTaskDuplicator(unittest.TestCase):
 	pass

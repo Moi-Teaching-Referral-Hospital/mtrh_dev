@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "creation": "2020-10-21 10:11:12.836536",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "reference",
+  "item_code",
+  "item_name",
+  "sample_evaluation"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference",
+   "fieldtype": "Link",
+   "label": "Reference",
+   "options": "Request for Quotation",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item Code",
+   "options": "Item",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "show_days": 1,
+   "show_seconds": 1
+  },
+  {
+   "fieldname": "sample_evaluation",
+   "fieldtype": "Table",
+   "label": "Sample Evaluation",
+   "options": "Sample Evaluation Item",
+   "show_days": 1,
+   "show_seconds": 1
+  }
+ ],
+ "links": [],
+ "modified": "2020-10-21 10:19:30.243321",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Sample Evaluation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

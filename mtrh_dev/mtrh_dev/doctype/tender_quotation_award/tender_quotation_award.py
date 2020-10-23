@@ -76,37 +76,46 @@ def update_price_list(doc, state):
 			if not doc.get("department"):
 				frappe.throw("Sorry, user department is mandatory for creation of Purchase Order")
 			else:
-				doc = frappe.new_doc('Purchase Order')
-				actual_name = suppname
-				purchase_order_items = get_po_item_dict(actual_name,item_code, reference, price_per_unit, doc.get("department"))
-				item_category = frappe.db.get_value("Item",item_code,'item_group')
-				doc.update(
-						{
-							"supplier_name":actual_name,
-							"conversion_rate":1,
-							"currency":frappe.defaults.get_user_default("currency"),
-							"supplier": actual_name,
-							"supplier_test":actual_name,
-							"company": frappe.defaults.get_user_default("company"),
-							"naming_series": "PUR-ORD-.YYYY.-",
-							"transaction_date" : date.today(),
-							"item_category":item_category,
-							"schedule_date" : add_days(nowdate(), 30),
-							"items":purchase_order_items
-						}
-					)
-				doc.insert()
-				po = doc.get("name")
-				frappe.msgprint(f"Purchase Order {po}\
-					  has been drafted successfully and posted in this system for further action.")
+				if doc.get("is_internal"):
+					return
+				else:
+					doc = frappe.new_doc('Purchase Order')
+					actual_name = suppname
+					purchase_order_items = get_po_item_dict(actual_name,item_code,\
+						reference, price_per_unit, doc)
+					item_category = frappe.db.get_value("Item",item_code,'item_group')
+					doc.update(
+							{
+								"supplier_name":actual_name,
+								"conversion_rate":1,
+								"currency":frappe.defaults.get_user_default("currency"),
+								"supplier": actual_name,
+								"supplier_test":actual_name,
+								"company": frappe.defaults.get_user_default("company"),
+								"naming_series": "PUR-ORD-.YYYY.-",
+								"transaction_date" : date.today(),
+								"item_category":item_category,
+								"schedule_date" : add_days(nowdate(), 30),
+								"items":purchase_order_items
+							}
+						)
+					doc.insert()
+					po = doc.get("name")
+					frappe.msgprint(f"Purchase Order {po}\
+						has been drafted successfully and posted in this system for further action.")
 	except Exception as e:
 		frappe.response["Exception"] = e
 		frappe.throw("Error in Transaction")	
-def get_po_item_dict(supplier, item_code, reference, quoted_price, department):
+def get_po_item_dict(supplier, item_code, reference, quoted_price, award_doc, quantity =None):
 	from mtrh_dev.mtrh_dev.stock_utils import get_item_default_expense_account
 	purchase_order_items =[]
 	row ={}
-
+	department = award_doc.get("department")
+	if not department:
+		departmentqry = frappe.db.sql(f"""SELECT department FROM `tabMaterial Request`\
+			WHERE name = (SELECT material_request FROM `tabRequest for Quotation Item` WHERE \
+				parent ='{reference}' and item_code = '{item_code}' ) """, as_dict=True) 
+		department = departmentqry[0].get("department")
 	doc = frappe.get_doc("Item", item_code)
 	item_group = doc.get("item_group")
 	default_warehouse = frappe.db.get_value("Item Default",\
@@ -116,7 +125,8 @@ def get_po_item_dict(supplier, item_code, reference, quoted_price, department):
 				{"parent":item_group,"parenttype":"Item Group"},'default_warehouse')
 	row["item_code"]=item_code
 	
-	qty = frappe.db.get_value('Supplier Quotation Item',{"parent":reference,'item_code': item_code},'qty') or 1
+	qty = quantity or frappe.db.get_value('Supplier Quotation Item',\
+		{"request_for_quotation":reference,'item_code': item_code},'qty') or 1
 	rate = quoted_price
 	amount = float(qty) * float(rate)
 	row["item_code"]=doc.get("item_code")

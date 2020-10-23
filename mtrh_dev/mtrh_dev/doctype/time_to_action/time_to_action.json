@@ -84,7 +84,7 @@
   }
  ],
  "links": [],
- "modified": "2020-09-18 01:58:30.624021",
+ "modified": "2020-10-16 17:27:41.156873",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Time to Action",
@@ -98,6 +98,18 @@
    "read": 1,
    "report": 1,
    "role": "All",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
    "share": 1,
    "write": 1
   }

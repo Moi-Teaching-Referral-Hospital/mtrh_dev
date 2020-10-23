@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import frappe, json
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import get_url, cint
+from frappe.utils import get_url, cint, get_fullname
 from frappe.utils.background_jobs import enqueue
 from frappe import msgprint
 from frappe.model.document import Document
@@ -322,3 +322,95 @@ def material_requests_per_task(task_number):
 	for mreq in material_requests_raised:
 		mreqlist.append(mreq.parent)
 	frappe.response["material_requests"]=mreqlist
+def mark_empty_status_as_open(doc):
+	#empty_status = [x for x in doc.get("depends_on") if not x.get("status")]
+	for row in doc.get("depends_on"):
+		if not row.get("status") or row.get("status") =="" or row.get("status") is None :
+			row.status = "Open"
+	return doc 
+def task_save_operations(doc, state):
+	if doc.get("depends_on"):
+		doc = mark_empty_status_as_open(doc)
+		completed = [x.get("task") for x in doc.get("depends_on") if x.get("status")=="Completed"]
+		#frappe.throw(completed)
+		all_tasks = [x.get("task") for x in doc.get("depends_on")]
+		percent  = int(len(completed) *100 /len(all_tasks)) 
+		frappe.msgprint(f"Success! Percentage Accomplished: {percent} %")
+		#frappe.throw([str(percent), all_tasks, completed])
+		doc.db_set("progress", int(percent))
+
+		if percent > 99.99:
+			doc.set("status","Completed")
+		else:
+			doc.set("status", "Open")
+	#doc.notify_update()
+def update_dependents_status(dependent_dict):
+	doc = dependent_dict.get("document")
+	status = dependent_dict.get("status")
+	doc.db_set("status", status)
+	#doc.save()
+@frappe.whitelist()
+def append_task_report(taskname, template_name, state=None, doc =None):
+	doc = doc or frappe.get_doc("Task", taskname)
+	project = doc.get("project")
+	task = doc.get("name")
+	user_allocated = frappe.get_value("ToDo",{"reference_type":"Task","reference_name": doc.get("name")},"owner") or doc.get("owner")
+	implementer =get_fullname(user_allocated)
+	starts = doc.get("exp_start_date") or "unspecified"
+	ends = doc.get("exp_end_date") or "unspecified"
+
+	completed = [x.get("task") for x in doc.get("depends_on") if x.get("status")=="Completed"]
+	all_tasks = [x.get("task") for x in doc.get("depends_on")]
+	#frappe.throw(str(len(completed)))
+	#frappe.throw(str(len(all_tasks)))
+	percent  = len(completed) or 0.0 *100 / len(all_tasks) or 0.0
+	
+
+	period =f"{starts} to {ends}"
+	percent_progress = int(doc.get("progress"))
+	progress =f"{percent_progress} %"
+	priority = doc.get("priority")
+	status = doc.get("status")
+
+	activities ="<p>--</p>"
+	if doc.get("depends_on"):
+		activities = "<table style='width:100%;border:1px;padding: 0;margin: 0;border-collapse: collapse;border-spacing:0;'><tr><td>ID</td><td>Subject</td><td>Status</td><td>Remarks</td></tr>"
+		for d in doc.get("depends_on"):
+			t_name =d.get("task")
+			subj = d.get("subject")
+			stat = d.get("status") or "" 
+			remarks = d.get("remarks") or "-"
+			activities+=f"<tr><td>{t_name}</td><td>{subj}</td><td>{stat}</td><td><b>Remarks:</b> {remarks}</td></tr>"
+		activities+="</table>"
+
+	template = frappe.get_doc("Document Template", template_name)
+	text = template.get("part_a")
+	text2 = eval(f"f'{text}'")
+	if(state):
+		doc.set("description", text2)
+	return text2
+def update_task_report(doc , state):
+	if doc.get("task_template"):
+		append_task_report(doc.get("name"),doc.get("task_template"), state, doc)
+	dependents =[]
+	dependents = [{"document":frappe.get_doc("Task",x.get("task")), "status": x.get("status")} for x in doc.get("depends_on")]
+	list(map(lambda x: update_dependents_status(frappe._dict(x)), dependents))
+	doc.notify_update()
+def task_duplicator(doc, state):
+	for d in doc.get("group_tasks"):
+		g_task = frappe.get_doc("Task", d.get("task"))
+		existing_dependent_tasks =[x.get("task") for x in g_task.get("depends_on")]
+		if doc.get("dependent_task") not in existing_dependent_tasks:
+			task_doc = frappe.get_doc({
+				"doctype":"Task",
+				"subject": doc.get("subject"),
+				"project": frappe.get_value("Task", doc.get("dependent_task"), "project")\
+					or frappe.get_value("Task", d.get("task"), "project"),
+				"parent_task": d.get("task"),
+				"status": "Open"
+			})
+			task_doc.flags.ignore_permissions = True
+			task_doc.run_method("set_missing_values")
+			task_doc.insert()
+	return
+
