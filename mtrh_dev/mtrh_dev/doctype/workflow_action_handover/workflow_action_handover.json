@@ -1,0 +1,85 @@
+{
+ "actions": [],
+ "creation": "2020-10-29 17:06:54.715356",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "reference",
+  "employee",
+  "disable_my_account",
+  "starting_from",
+  "ending",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference",
+   "fieldtype": "Data",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Workflow Action Handover",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Employee to hand over to",
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "description": "Removes you from Workflow alert list for the period specified. Also, you cannot login unless you have been recalled.",
+   "fieldname": "disable_my_account",
+   "fieldtype": "Data",
+   "label": "Disable my account?"
+  },
+  {
+   "description": "When you expect to start the handover.",
+   "fieldname": "starting_from",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Starting From",
+   "reqd": 1
+  },
+  {
+   "description": "When you expect to resume.",
+   "fieldname": "ending",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Ending",
+   "reqd": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-10-29 17:40:34.664877",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Workflow Action Handover",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -1,14 +1,14 @@
 import frappe, json
 from frappe import _
 from frappe.utils.file_manager import check_max_file_size, get_content_hash, get_file_name, get_file_data_from_hash
-from frappe.utils import get_files_path, get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt
+from frappe.utils import get_files_path,cstr ,get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt
 import os, base64
 from six import text_type, string_types
 import mimetypes
 from copy import copy
 from mtrh_dev.mtrh_dev.tqe_on_submit_operations import raise_po_based_on_direct_purchase
 from mtrh_dev.mtrh_dev.sms_api import send_sms_alert
-
+from frappe.core.doctype.sms_settings.sms_settings import send_sms
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
 
 from erpnext.accounts.utils import get_fiscal_year
@@ -160,8 +160,13 @@ def process_workflow_log(doc, state):
 		if not workflow: 
 			this_doc_workflow_state ="Draft"
 		else:
-			if is_workflow_action_already_created(doc): return
 			this_doc_workflow_state = get_doc_workflow_state(doc)
+			if is_workflow_action_already_created(doc):
+				#CLEAR ALL WORKFLOW ACTIONS THAT HAVE ALREADY BEEN COMPLETED ON THIS DOCUMENT IF THE NEW WORKFLOW ACTION IS DRAFT
+				if this_doc_workflow_state == "Draft":
+					doc_name = doc.get("name")
+					frappe.db.sql(f"""DELETE FROM `tabWorkflow Action` WHERE reference_name = '{doc_name}' AND name != '1'""")
+				return
 			if not this_doc_workflow_state:
 				this_doc_workflow_state ="Draft"
 		the_decision = "Actioned To: " + this_doc_workflow_state
@@ -579,14 +584,20 @@ def schedule_sms_to_user(userid, sms_message):
 		"requested_numbers":phone,
 		"no_of_requested_sms": 0,
 		"no_of_sent_sms":0,
-		"status": "Scheduled"
+		"status": "Scheduled",
+		"is_not_from_sms_center":True
 	})
 	sms_log.flags.ignore_permissions=True
 	sms_log.flags.ignore_links=True
 	sms_log.insert()
-	frappe.msgprint(_("""User {0} will be alerted through SMS""").format(userid))
+	frappe.msgprint(_(f"""User {userid} will be alerted through SMS"""))
 	return
-
+def mark_sms_center_document_as_scheduled(doc, state):
+	if not doc.get("is_not_from_sms_center"):
+		doc.set("status", "Scheduled")
+		doc.flags.ignore_permissions = True
+		doc.run_method("set_missing_values")
+		doc.save()
 def send_scheduled_sms_cron():
 	scheduled_sms = frappe.db.get_all("SMS Log",
 		filters={
@@ -598,11 +609,16 @@ def send_scheduled_sms_cron():
 		)
 	for sms in scheduled_sms:
 		incoming_payload =[]
-		data = {
-			"phone": sms.get("requested_numbers"),
-			"message": sms.get("message")
-		}
-		incoming_payload.append(data.copy())
+		all_contacts = str(sms.get("requested_numbers"))
+		delimiter ="\n"
+		contacts_arr = all_contacts.split(delimiter)
+		message = sms.get("message")
+		incoming_payload = [
+		 {
+			"phone": x,
+			"message": message
+		} for x in contacts_arr]
+		#incoming_payload.append(data.copy())
 		send_sms_alert(json.dumps(incoming_payload))
 		#print(_("""User {0} has been alerted through SMS""").format(userid))
 		#frappe.msgprint(_("""User {0} has been alerted through SMS""").format(userid))
@@ -612,7 +628,16 @@ def send_scheduled_sms_cron():
 	sql_upd_sms = f"UPDATE `tabSMS Log` SET status = 'Processed' WHERE `name` IN {sms_names_str}"
 	frappe.db.sql(sql_upd_sms)
 	return
-
+def queue_bulk_sms_docs_cron():
+	doclist = frappe.db.sql(f"""SELECT name FROM `tabBulk SMS Dispatch`\
+		 WHERE evaluated = 0 and docstatus = 1""", as_dict=True)
+	if doclist:
+		documents = [frappe.get_doc("Bulk SMS Dispatch",x.get("name")) for x in doclist]
+		list(map(lambda x: schedule_sms_dispatch(x), documents))
+def schedule_sms_dispatch(doc):
+	doc.send_sms()
+	doc.db_set("evaluated", 1)
+	return
 #====================================================================================================================================================
 # ALERT USERS ON A NEW WORKFLOW ACTION CREATED.	
 #====================================================================================================================================================
@@ -623,7 +648,7 @@ def alert_user_on_workflowaction(doc, state):
 	workflow_state = doc.get('workflow_state')
 	if(workflow_state != "Approved"):
 		message_out = _("""A document {0} - {1} has been forwarded to you to action on MTRH Enterprise Portal. Check all your pending work here: https://bit.ly/2F8E18L""").format(reference_doctype, reference_name)
-		schedule_sms_to_user(theuser, message_out)
+		#schedule_sms_to_user(theuser, message_out)
 	return
 @frappe.whitelist()
 def return_approval_routes(department):
@@ -1041,6 +1066,7 @@ def daily_pending_work_reminder():
 			
 			date_format = "%m/%d/%Y"
 			today_date = datetime.today() #.strftime(date_format)
+			cummulative_hours = 0
 			for document in user_pending_works:
 				reference_name = document.get("reference_name")
 				reference_doctype = document.get("reference_doctype")
@@ -1052,14 +1078,27 @@ def daily_pending_work_reminder():
 				delay_time_narrative = ""
 				if(delay_days == 0):
 					delay_hours = int(delta.seconds/3600)
+					cummulative_hours += delay_hours
 					delay_time_narrative = f"{delay_hours} hours"
 				else:
+					cummulative_hours += delay_days * 24
 					delay_time_narrative = f"{delay_days} days"
 				email_message += f"<tr><td>{reference_doctype}</td><td>{reference_name}</td><td>{workflow_state}</td><td align='right'>{delay_time_narrative}</td></tr>"
 			email_message += "</table><br/><hr>Your prompt action will alleviate more delays! Login and take action here: https://portal.mtrh.go.ke. <hr>Thank you!"
 			formatted_date = today_date.strftime(date_format)
 			subject = f"ERP Intray - {formatted_date}"
 			send_notifications(user_email, email_message, subject)
+			average_hours = int(cummulative_hours/no_of_documents)
+			sms_to_user = f"You have {no_of_documents} pending documents to action on the portal. Average delay in action: {average_hours} hours. Check your actions here:  https://bit.ly/2F8E18L"
+			phone = get_user_phonenumber(user_email)
+			if phone:
+				data = {
+					"phone": phone,
+					"message": sms_to_user
+				}
+				incoming_payload =[]
+				incoming_payload.append(data.copy())
+				send_sms_alert(json.dumps(incoming_payload))
 	return user_pending_counts
 
 def send_notifications(recipients, message, subject):
@@ -1224,3 +1263,23 @@ def create_user(employee, user = None, email=None):
 def return_applicable_document_template(doctype):
 	return frappe.db.sql(f"""SELECT DISTINCT applicable_for\
 		 FROM `tabDocument Template Doctype` WHERE parent ='{doctype}'""", as_dict=True)
+def return_fields_to_capitalize():
+	return ["item_name","item_group_name","employee_name"]
+def capitalize_essential_fields(doc , state):
+	fields_to_capitalize = return_fields_to_capitalize()
+	if fields_to_capitalize:
+		for d in fields_to_capitalize:
+			if frappe.get_meta(doc.get("doctype")).has_field(d):
+				doc.set(d, doc.get(d).upper())
+def enforce_variants(doc, state):
+	if not doc.get("variant_of"):
+		if not doc.get("has_variants") and doc.get("disabled")==False:
+			frappe.throw(_("Error. Kindly ensure that this item has at least one variant"))
+def enforce_unique_item_name(doc, state):
+	if frappe.db.count('Item', {'item_name': doc.get("item_name").upper(), "item_code":["!=", doc.get("name")]}) > 0:
+		item_name = doc.get("item_name").upper()
+		if doc.get("disabled")==True:
+			pass
+		else:
+			frappe.throw(f"Sorry {item_name} already exists!")
+	return

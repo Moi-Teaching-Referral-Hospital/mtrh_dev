@@ -95,7 +95,8 @@ default_mail_footer = "MTRH Enterprise System"
 doc_events = {
 	"*": {
 		"before_save": [
-			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
+			"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields"
 		],
 		"before_submit": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
@@ -156,14 +157,17 @@ doc_events = {
 		#"on_submit":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.insert_user_permissions"
 	},
 	"Item":{
-		"before_save":"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations",
+		"before_save":["mtrh_dev.mtrh_dev.utilities.enforce_unique_item_name",
+		"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations",
+		"mtrh_dev.mtrh_dev.utilities.enforce_variants"],
 		"on_submit":"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations"
 	},
 	"Stock Entry":{
 		"before_save": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 	},
 	"Document Expiry Extension":{
-		"before_save": "mtrh_dev.mtrh_dev.utilities.process_workflow_log",
+		"before_save": ["mtrh_dev.mtrh_dev.stock_utils.validate_expiry_extension",
+		"mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
 		"on_submit": "mtrh_dev.mtrh_dev.stock_utils.document_expiry_extension"	
 	},
 	"Chat Message":{
@@ -173,10 +177,10 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.alert_user_on_workflowaction"
 	},
 	"Employee":{
-		"before_save": "mtrh_dev.mtrh_dev.utilities.assign_department_permissions"
+		#"before_save": "mtrh_dev.mtrh_dev.utilities.assign_department_permissions"
 	},
 	"Comment":{
-		"before_save": "mtrh_dev.mtrh_dev.utilities.send_comment_sms"
+		"before_save": "mtrh_dev.mtrh_dev.utilities.process_comment"
 	},
 	"Supplier Quotation":{
 		#"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
@@ -186,6 +190,7 @@ doc_events = {
 		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations"
 	},
 	"Externally Generated Purchase Order":{
+		"before_save": "mtrh_dev.mtrh_dev.stock_utils.external_lpo_save_transaction",
 		"before_submit": "mtrh_dev.mtrh_dev.stock_utils.externally_generated_po"
 	},
 	"File":{
@@ -202,7 +207,7 @@ doc_events = {
 	},
 	"Document Email Dispatch":{
 		"after_insert":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email",
-		"on_update":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"			
+		#"on_update":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email"			
 	},
 	"Project":{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.project_budget_submit"
@@ -227,7 +232,14 @@ doc_events = {
 	"Task Duplicator":{
 		"before_submit":"mtrh_dev.mtrh_dev.tasks.task_duplicator",
 		#"on_update":"mtrh_dev.mtrh_dev.tasks.update_task_report"
+	},
+	"SMS Log":{
+		"after_insert": "mtrh_dev.mtrh_dev.utilities.mark_sms_center_document_as_scheduled"
+	},
+	"ToDo":{
+		"after_insert":"mtrh_dev.mtrh_dev.tasks.append_task_assignment"
 	}
+
 }
 
 # Scheduled Tasks

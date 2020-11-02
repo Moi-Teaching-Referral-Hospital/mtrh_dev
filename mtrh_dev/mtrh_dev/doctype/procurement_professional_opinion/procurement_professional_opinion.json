@@ -29,6 +29,7 @@
   "bidding_schedule",
   "award_schedule_section",
   "award_schedule",
+  "clear_award_schedule",
   "amended_from",
   "ceo_remarks",
   "reevaluate"
@@ -41,9 +42,7 @@
    "label": "Reference Number",
    "options": "Tender Quotation Opening",
    "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "request_for_quotation",
@@ -52,24 +51,18 @@
    "label": "Request for Quotation",
    "options": "Request for Quotation",
    "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "column_break_3",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Column Break"
   },
   {
    "default": "0.0",
    "fieldname": "procurement_value",
    "fieldtype": "Currency",
    "label": "Procurement Value",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "bold": 1,
@@ -77,116 +70,86 @@
    "fieldname": "rfq_approval",
    "fieldtype": "Date",
    "label": "Accounting Officer  Approval of RFQ",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "column_break_6",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Column Break"
   },
   {
    "bold": 1,
    "fieldname": "number_of_rfqs_issued",
    "fieldtype": "Data",
    "label": "Number of RFQs Issued",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "bold": 1,
    "fieldname": "number_of_rfqs_received",
    "fieldtype": "Data",
    "label": "Number of RFQs Received",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "collapsible": 1,
    "fieldname": "votebook_details_section",
    "fieldtype": "Section Break",
-   "label": "Votebook Details",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Votebook Details"
   },
   {
    "fieldname": "vote_balance",
    "fieldtype": "Currency",
    "label": "Vote Balance",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "votebook_information",
    "fieldtype": "Text Editor",
    "label": "Votebook Information",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "procurement_professional_opinion_section",
    "fieldtype": "Section Break",
-   "label": "Procurement Professional Opinion",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Procurement Professional Opinion"
   },
   {
    "fieldname": "opinion_template",
    "fieldtype": "Link",
    "label": "Opinion Template",
-   "options": "Document Template",
-   "show_days": 1,
-   "show_seconds": 1
+   "options": "Document Template"
   },
   {
    "fieldname": "procurement_opinion",
    "fieldtype": "Text Editor",
-   "label": "Procurement Opinion",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Procurement Opinion"
   },
   {
    "fieldname": "bidding_schedule_section",
    "fieldtype": "Section Break",
-   "label": "Bid Schedule",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Bid Schedule"
   },
   {
    "fieldname": "award_all_direct_purchase",
    "fieldtype": "Button",
-   "label": "Award All (Direct Purchase)",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Award All (Direct Purchase)"
   },
   {
    "fieldname": "supplier_bid_schedule",
    "fieldtype": "Heading",
-   "label": "Supplier Bid Schedule",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Supplier Bid Schedule"
   },
   {
    "description": "Bid Price Schedule",
    "fieldname": "bidding_schedule",
    "fieldtype": "Table",
    "label": "Bidding Schedule",
-   "options": "Bid Price Schedule Item",
-   "show_days": 1,
-   "show_seconds": 1
+   "options": "Bid Price Schedule Item"
   },
   {
    "fieldname": "award_schedule_section",
    "fieldtype": "Section Break",
-   "label": "Award Schedule",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Award Schedule"
   },
   {
    "description": "Award Schedule",
@@ -194,9 +157,7 @@
    "fieldtype": "Table",
    "label": "Award Schedule",
    "options": "Award Price Schedule Item",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
@@ -210,17 +171,13 @@
   {
    "fieldname": "ceo_remarks",
    "fieldtype": "Text",
-   "label": "CEO Remarks",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "CEO Remarks"
   },
   {
    "depends_on": "eval:doc.docstatus ==1",
    "fieldname": "reevaluate",
    "fieldtype": "Button",
-   "label": "Re-Evaluate",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Re-Evaluate"
   },
   {
    "bold": 1,
@@ -228,30 +185,31 @@
    "fieldname": "reason_for_procurement",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Reason for Procurement",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Reason for Procurement"
   },
   {
    "description": "e.g. Where services, items are to be used. Or Reason for the request(s)",
    "fieldname": "section_break_9",
    "fieldtype": "Section Break",
-   "label": "Purpose of Items Requested",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Purpose of Items Requested"
   },
   {
    "fieldname": "purpose_of_request",
    "fieldtype": "Text Editor",
    "label": "Purpose of Request",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.workflow_state ==\"Draft\" \n&& doc.award_schedule",
+   "fieldname": "clear_award_schedule",
+   "fieldtype": "Button",
+   "label": "Clear Award Schedule",
+   "options": "clear_award_schedule"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-10-23 15:51:39.504083",
+ "modified": "2020-11-02 16:26:17.625186",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Procurement Professional Opinion",
@@ -320,6 +278,7 @@
   }
  ],
  "quick_entry": 1,
+ "search_fields": "request_for_quotation,reference_number",
  "sort_field": "modified",
  "sort_order": "DESC",
  "track_changes": 1

@@ -413,4 +413,24 @@ def task_duplicator(doc, state):
 			task_doc.run_method("set_missing_values")
 			task_doc.insert()
 	return
+def task_assignment_cron():
+	all_todos = frappe.db.sql("""SELECT name FROM `tabToDo` WHERE \
+		reference_name IN (SELECT name FROM `tabTask` WHERE is_group = 1 ) """, as_dict=True)
+	documents = [frappe.get_doc("ToDo",x.get("name")) for x in all_todos]
+	list(map(lambda x: append_task_assignment(x,"Approved"), documents))
+def append_task_assignment(doc, state):
+	if doc.get("reference_type") == "Task":
+		task = doc.get("reference_name")
+		task_id = frappe.get_doc("Task", task)
+		allocated_to = doc.get("owner")
+		dependent_tasks = [x.get("task") for x in task_id.get("depends_on") if x.get("task")]		
+		parent_task=[task]
+		list(map(lambda x: assign_user_to_task(x, allocated_to), dependent_tasks))
+		list(map(lambda x: assign_user_to_task(x, allocated_to), parent_task))
+	return
+def assign_user_to_task(docname, owner):
+	employee_name = get_fullname(owner)
+	frappe.db.sql(f"UPDATE `tabTask` SET implementer ='{employee_name}' WHERE name ='{docname}'")
+	return
+
 

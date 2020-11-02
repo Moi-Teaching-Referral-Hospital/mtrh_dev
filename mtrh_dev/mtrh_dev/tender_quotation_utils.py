@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from frappe.core.doctype.communication.email import make
 from mtrh_dev.mtrh_dev.workflow_custom_action import send_tqe_action_email
 STANDARD_USERS = ("Guest", "Administrator")
-from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url, get_datetime, flt, get_date_str, format_datetime, fmt_money, money_in_words, get_url, get_link_to_form
+from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url,get_fullname, get_datetime, flt, get_date_str, format_datetime, fmt_money, money_in_words, get_url, get_link_to_form
 from mtrh_dev.mtrh_dev.workflow_custom_action import send_notifications
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
 from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state
@@ -121,7 +121,7 @@ def create_tqa(doc, document_type, item_filter = None):
 		create_tender_number(rfq_in_question)
 	for d in doc.get("items"):							
 		count = frappe.db.count('Tender Quotation Award', \
-			{'reference_number':rfq_in_question,'item_code':d.get("item_code")})
+			{'reference_number':rfq_in_question,"docstatus":0, 'item_code':d.get("item_code")})
 		if count < 1:
 			sq_doc = frappe.get_doc({
 				"doctype": "Tender Quotation Award",
@@ -144,20 +144,22 @@ def create_tqa(doc, document_type, item_filter = None):
 			sq_doc.save()
 		else:
 			award_no = frappe.db.get_value("Tender Quotation Award",\
-				{'reference_number':rfq_in_question,'item_code':d.get("item_code")}\
+				{'reference_number':rfq_in_question,"docstatus":0,'item_code':d.get("item_code")}\
 					,'name')
-			tqa_doc = frappe.get_doc("Tender Quotation Award", award_no)
-			tqa_doc.append('suppliers', {
-				"supplier_name": doc.get('supplier'),
-				"item_uom": d.get('stock_uom'),
-				"unit_price": d.get('rate'),
-				"quantity": d.get('qty'),
-				"amount": d.get('amount'),
-				"awarded_bidder": False		
-			}) 
-			tqa_doc.flags.ignore_permissions = True
-			tqa_doc.run_method("set_missing_values")
-			tqa_doc.save()
+			if award_no:
+				tqa_doc = frappe.get_doc("Tender Quotation Award", award_no)
+				tqa_doc.append('suppliers', {
+					"supplier_name": doc.get('supplier'),
+					"item_uom": d.get('stock_uom'),
+					"unit_price": d.get('rate'),
+					"quantity": d.get('qty'),
+					"amount": d.get('amount'),
+					"awarded_bidder": False		
+				}) 
+				tqa_doc.flags.ignore_permissions = True
+				tqa_doc.run_method("set_missing_values")
+				tqa_doc.save()
+	return
 def create_tender_number(rfq):
 	sq_doc = frappe.get_doc({
 			"doctype": "Tender Number",
@@ -268,6 +270,16 @@ def add_bidding_schedule(docname):
 		create_bidding_schedule(document)
 	else:
 		frappe.throw("Sorry, there is an existing award schedule in progress")
+def get_material_requests_purpose(material_reqs):
+	reason ="<h2>Purpose of Request(s)</h2>"
+	if len(material_reqs)>0:
+		for mr in material_reqs:
+			document = frappe.get_doc("Material Request", mr)
+			purpose = document.get("reason_for_this_request") or "unspecified"
+			mr_link = get_link_to_form("Material Request", mr)
+			requester = document.get("requester") or get_fullname(document.get("owner"))
+			reason+=f"<h3>{mr_link}:</h3> <p>Reason from User Request: {purpose} - <b>User: {requester}</b></p>"
+	return reason
 def create_bidding_schedule(doc):
 	try:
 		bids_so_far = doc.get("bids")
@@ -276,10 +288,15 @@ def create_bidding_schedule(doc):
 		if bids_so_far:
 			bid_numbers = [bid.get("bid_number") for bid in bids_so_far]
 			rfq = frappe.get_doc("Request for Quotation", doc.get("rfq_no"))
+			material_reqs =[x.get("material_request") for x in rfq.get("items") if x.get("material_request")]
+			unique_mrs = list(dict.fromkeys(material_reqs))
+
+			material_request_reason = get_material_requests_purpose(unique_mrs) or "-"
 			bid_doc = frappe.get_doc({
 				"doctype":"Procurement Professional Opinion",
 				"reference_number":doc.get("name"),
 				"request_for_quotation": rfq.get("name"),
+				"purpose_of_request": material_request_reason,
 				"rfq_approval": rfq.get("modified"),
 				"number_of_rfqs_issued":bidders_invited,
 				"number_of_rfqs_received":respondents
@@ -406,7 +423,9 @@ def append_bid_schedule_items(bid_numbers , bid_doc):
 	#bid_doc.append("bidding_schedule",child)
 	return bid_doc
 def perform_bid_schedule_save_operations(doc , state):
-	to_award = validate_bid_schedule(doc)
+	to_award = validate_award_schedule(doc)
+	validate_refloating(doc)
+	validate_renegotiation(doc)
 	total = 0.0
 	for d in to_award:
 		doc.append("award_schedule",{
@@ -428,8 +447,20 @@ def perform_bid_schedule_save_operations(doc , state):
 		if item.get("award_type") =="Awarded":
 			total+=flt(item.get('amount'))
 	doc.set("procurement_value", total)
-
-def validate_bid_schedule(doc):
+def validate_refloating(doc):
+	items = doc.get("bidding_schedule")
+	unique_items =[x.get("item_code") for x in items  if x.get("award_type")=="Re-Tender or Refloat Quotations"]
+	for d in items:
+		if d.get("item_code") in unique_items:
+			d.set("award_type", "Re-Tender or Refloat Quotations")
+def validate_renegotiation(doc):
+	bids = int(doc.get("number_of_rfqs_received"))
+	items = doc.get("bidding_schedule")
+	unique_items =[x.get("item_code") for x in items  if x.get("award_type")=="Send for Renegotiation"]
+	if bids > 1 and  unique_items:
+		frappe.throw(_(f"Sorry you cannot select 'Send for Renegotiation' for a document with multiple bidders.\
+			 Hint: You could select 'Re-Tender or Refloat Quotations' for the specific items."))
+def validate_award_schedule(doc):
 	items = doc.get("bidding_schedule")
 	unique_items =[x.get("item_code") for x in items]
 	unique_items= list(dict.fromkeys(unique_items))
@@ -455,7 +486,9 @@ def professional_opinion_to_award_cron():
 	from datetime import datetime 
 	last_approved_opinions = frappe.db.get_all('Procurement Professional Opinion',
 		filters={
-			'modified': [">", datetime.now() - timedelta(hours=10)]
+			#'modified': [">", datetime.now() - timedelta(hours=10)],
+			'docstatus': 1,
+			'evaluated' : 0
 		},
 		fields=['name'],
 		as_list=False
@@ -468,82 +501,122 @@ def re_evaluate_submitted_professional_opinion(docname):
 	doc = frappe.get_doc("Procurement Professional Opinion", docname)
 	perform_bid_schedule_submit_operations(doc, "Approved")
 	#frappe.response["message"] = doc
+def get_supplier_quotation_from_tqo(supplier,opening_doc):
+	opening_doc = frappe.get_doc("Tender Quotation Opening", opening_doc)
+	sq_to_return =""
+	for d in opening_doc.get("bids"):
+		interim_sq = None
+		sq = d.get("bid_number")
+		interim_sq = frappe.db.get_value("Supplier Quotation",sq,["name","supplier"],as_dict=True) 
+		if interim_sq.get("supplier") ==supplier:
+			sq_to_return = interim_sq.name
+	return sq_to_return
 def perform_bid_schedule_submit_operations(doc , state):
-	award_schedule= doc.get("award_schedule")
-	awards2submit =[]
-	for d in award_schedule:
-		supplier_quotation_doc = None
-		supplier_quotation = d.get("supplier_quotation")
-		supplier_quotation_doc = frappe.get_doc("Supplier Quotation",supplier_quotation)
-		document_type = supplier_quotation_doc.get("type")
-		#supplier = d.get("bidder")
-		rfq_in_question =  supplier_quotation_doc.get("external_reference_id")
-		if (document_type and (document_type =="IsReturned Price Schedule" or document_type =="IsReturned Price Schedule (External)")):
-			rfq_in_question =  supplier_quotation_doc.get("reference_procurement_id")
-		mode_of_purchase = frappe.db.get_value("Request for Quotation",rfq_in_question,'mode_of_purchase')\
-			or frappe.db.get_value("Tender Quotation Opening",{'rfq_no': rfq_in_question, 'docstatus':['!=',"2"]},\
-				'procurement_method')
-		item_code =d.get("item_code")
+	try:
+		award_schedule= doc.get("award_schedule")
+		awards2submit =[]
+		docname = doc.get("name")
+		for d in award_schedule:
+			supplier_quotation_doc = None
+			bidder = d.get("bidder")
+			supplier_quotation = d.get("supplier_quotation") or \
+				 get_supplier_quotation_from_tqo(d.get("bidder"), doc.get("reference_number"))
+			#######
+			frappe.db.sql(f"UPDATE `tabBid Price Schedule Item` SET supplier_quotation ='{supplier_quotation}'\
+				WHERE parent ='{docname}' and bidder ='{bidder}'")
+			frappe.db.sql(f"UPDATE `tabAward Price Schedule Item` SET supplier_quotation ='{supplier_quotation}'\
+				WHERE parent ='{docname}' and bidder ='{bidder}'")
+			#######
+			supplier_quotation_doc = frappe.get_doc("Supplier Quotation",supplier_quotation)
+			document_type = supplier_quotation_doc.get("type")
+			#supplier = d.get("bidder")
+			rfq_in_question =  supplier_quotation_doc.get("external_reference_id")
+			if (document_type and (document_type =="IsReturned Price Schedule" or document_type =="IsReturned Price Schedule (External)")):
+				rfq_in_question =  supplier_quotation_doc.get("reference_procurement_id")
+			mode_of_purchase = frappe.db.get_value("Request for Quotation",rfq_in_question,'mode_of_purchase')\
+				or frappe.db.get_value("Tender Quotation Opening",{'rfq_no': rfq_in_question, 'docstatus':['!=',"2"]},\
+					'procurement_method')
+			item_code =d.get("item_code")
+			
+			department = frappe.db.sql(f"""SELECT department FROM `tabMaterial Request`\
+				WHERE name = (SELECT material_request FROM `tabRequest for Quotation Item` WHERE \
+					parent ='{rfq_in_question}' and item_code = '{item_code}' ) """, as_dict=True) 
+			thedepartment = department[0].get("department")
+
+			frappe.msgprint(f"Consumer department is {thedepartment}")
+			if not frappe.db.exists("Tender Number",rfq_in_question):
+				create_tender_number(rfq_in_question)
+
+			count = frappe.db.count('Tender Quotation Award', \
+				{'reference_number':rfq_in_question,"docstatus":0,'item_code':d.get("item_code")})
+			award_exists = frappe.db.exists({"doctype":"Tender Quotation Award",\
+				 "item_code":item_code,"reference_number":rfq_in_question})
+			if not award_exists:
+				sq_doc = frappe.get_doc({
+					"doctype": "Tender Quotation Award",
+					"item_code": d.get('item_code'),
+					"item_name": d.get("item_name"),
+					"reference_number": rfq_in_question,
+					"procurement_method": mode_of_purchase,	
+					"is_internal": True,
+					"department": thedepartment
+				})
+				sq_doc.append('suppliers', {
+					"supplier_name": d.get('bidder'),
+					"item_uom": d.get('uom'),
+					"unit_price": d.get('rate'),
+					"quantity": d.get('qty'),
+					"amount":d.get('amount'),
+					"supplier_quotation": d.get("supplier_quotation"),
+					"awarded_bidder": True	#if d.get("award_type") == Awarded else False
+				})
+				#if department:
+				#	sq_doc.set("department", department[0].get("department"))
+				sq_doc.flags.ignore_permissions = True
+				sq_doc.run_method("set_missing_values")
+				sq_doc.insert()
+				awards2submit.append(sq_doc.get("name"))
+			else:
+				award_no = frappe.db.get_value("Tender Quotation Award",\
+					{'reference_number':rfq_in_question,"docstatus":0,'item_code':d.get("item_code")}\
+						,'name')
+				if award_no:
+					tqa_doc = frappe.get_doc("Tender Quotation Award", award_no)
+					tqa_doc.append('suppliers', {
+						"supplier_name": d.get('bidder'),
+						"item_uom": d.get('uom'),
+						"unit_price": d.get('rate'),
+						"quantity": d.get('qty'),
+						"amount": d.get('amount'),
+						"awarded_bidder": False,
+						"supplier_quotation": d.get("supplier_quotation")
+					}) 
+					tqa_doc.flags.ignore_permissions = True
+					tqa_doc.run_method("set_missing_values")
+					tqa_doc.save()
+					if  tqa_doc.get("name") not in awards2submit:
+						awards2submit.append(tqa_doc.get("name"))
+		if awards2submit:				
+			documents =[frappe.get_doc("Tender Quotation Award", x) for x in awards2submit]
+			list(map(lambda x: x.submit(), documents))
+		#Now Raise POs 
+		items = doc.get("award_schedule")
+		to_refloat = [x.get("item_code") for x in items  if x.get("award_type")=="Re-Tender or Refloat Quotations"]
+		to_renegotiate = [x.get("item_code") for x in items  if x.get("award_type")=="Send for Renegotiation"]
 		
-		department = frappe.db.sql(f"""SELECT department FROM `tabMaterial Request`\
-			WHERE name = (SELECT material_request FROM `tabRequest for Quotation Item` WHERE \
-				parent ='{rfq_in_question}' and item_code = '{item_code}' ) """, as_dict=True) 
-		thedepartment = department[0].get("department")
-
-		frappe.msgprint(f"Consumer department is {thedepartment}")
-		if not frappe.db.exists("Tender Number",rfq_in_question):
-			create_tender_number(rfq_in_question)
-
-		count = frappe.db.count('Tender Quotation Award', \
-			{'reference_number':rfq_in_question,'item_code':d.get("item_code")})
-		if count < 1:
-			sq_doc = frappe.get_doc({
-				"doctype": "Tender Quotation Award",
-				"item_code": d.get('item_code'),
-				"item_name": d.get("item_name"),
-				"reference_number": rfq_in_question,
-				"procurement_method": mode_of_purchase,	
-				"is_internal": True,
-				"department": thedepartment
-			})
-			sq_doc.append('suppliers', {
-				"supplier_name": d.get('bidder'),
-				"item_uom": d.get('uom'),
-				"unit_price": d.get('rate'),
-				"quantity": d.get('qty'),
-				"amount":d.get('amount'),
-				"supplier_quotation": d.get("supplier_quotation"),
-				"awarded_bidder": True	
-			})
-			#if department:
-			#	sq_doc.set("department", department[0].get("department"))
-			sq_doc.flags.ignore_permissions = True
-			sq_doc.run_method("set_missing_values")
-			sq_doc.insert()
-			awards2submit.append(sq_doc.get("name"))
-		else:
-			award_no = frappe.db.get_value("Tender Quotation Award",\
-				{'reference_number':rfq_in_question,'item_code':d.get("item_code")}\
-					,'name')
-			tqa_doc = frappe.get_doc("Tender Quotation Award", award_no)
-			tqa_doc.append('suppliers', {
-				"supplier_name": d.get('bidder'),
-				"item_uom": d.get('uom'),
-				"unit_price": d.get('rate'),
-				"quantity": d.get('qty'),
-				"amount": d.get('amount'),
-				"awarded_bidder": False,
-				"supplier_quotation": d.get("supplier_quotation")
-			}) 
-			tqa_doc.flags.ignore_permissions = True
-			tqa_doc.run_method("set_missing_values")
-			tqa_doc.save()
-			if tqa_doc.get("name") not in awards2submit:
-				awards2submit.append(tqa_doc.get("name"))
-	documents =[frappe.get_doc("Tender Quotation Award", x) for x in awards2submit]
-	list(map(lambda x: x.submit(), documents))
-	#Now Raise POs 
-	raise_po_on_professional_opinion_submit(doc)
+		to_refloat = list(dict.fromkeys(to_refloat))
+		to_renegotiate = list(dict.fromkeys(to_renegotiate))
+	
+		new_rfq_operations(doc, to_refloat, to_renegotiate)
+		raise_po_on_professional_opinion_submit(doc)
+		doc.db_set("evaluated", True)
+		return
+	except Exception as e:
+		frappe.throw(f"{e}")
+def new_rfq_operations(doc , to_refloat= None, to_renegotiate= None):
+	if to_renegotiate: doc.send_for_renegotiation(to_renegotiate)
+	if to_refloat: doc.refloat_quotation(to_refloat)
+	return
 def perform_tqo_submit_operations(doc, state):
 	unopened_passwords = return_unopened_passwords(doc)
 	#frappe.throw(formatted_string)
@@ -643,7 +716,7 @@ def update_respondents():
 		percent_response = (bids/invited_bidders)*100
 		frappe.db.sql(f"""UPDATE `tabBid Price Schedule` SET number_of_rfqs_issued ={invited_bidders}, \
 			number_of_rfqs_received ={bids} WHERE reference_number='{reference}'""")
-		frappe.db.sql(f"""UPDATE `tabTender Quotation Opening` SET bidders_invited ={invited_bidders}, \
+		frappe.db.sql(f"""UPDATE `tabTender Quotation Opening Bid` SET bidders_invited ={invited_bidders}, \
 			respondents ={bids}, response ={percent_response} WHERE name='{reference}'""")
 def alert_opening_members():
 	pending  = frappe.db.sql("SELECT name FROM `tabTender Quotation Opening`\
@@ -677,11 +750,10 @@ def document_dashboard(doctype, docname):
 
 		to_return+= f"<tr><td>Authority to Procure: </td><td>{authority_to_procure}</td></tr>"
 		to_return+= f"<tr><td>Opening Report</td><td>{opening_report}</td></tr>"
-		#to_return+= "<tr><td></td><td></td></tr>"
 		to_return+= "</table>"
 	elif doctype == "Purchase Order":
 		to_return = ""
-		supplier_quotations = [x.get("supplier_quotation") for x in document.get("items")]
+		supplier_quotations = [x.get("supplier_quotation") for x in document.get("items") if x.get("supplier_quotation")]
 		#frappe.throw(supplier_quotations)
 		if len(supplier_quotations) > 0:
 			sq_q = '('+','.join("'{0}'".format(i) for i in supplier_quotations)+')'
@@ -700,36 +772,48 @@ def document_dashboard(doctype, docname):
 			to_return+= f"<tr><td>Award Report:	</td><td>{professional_opinion_links}</td></tr>"
 			to_return+= "</table>"
 	return to_return
+def sq_item_in_po(item, sq):
+	'''return frappe.db.sql(f"SELECT name FROM `tabPurchase Order Item` WHERE item_code='{item}'\
+		 AND supplier_quotation='{sq}'",as_dict=True)'''
+	return frappe.db.exists({'doctype': 'Purchase Order Item',"item_code": item,"supplier_quotation":sq})
 def raise_po_on_professional_opinion_submit(doc):
 	try:	
 		rfq = frappe.get_doc("Request for Quotation", doc.get("request_for_quotation"))
-		if "Tender" in rfq.get("mode_of_purchase"):
+		opening_doc = doc.get("reference_number")
+		if "Tender" in [rfq.get("mode_of_purchase")]:
 			return
 		else:
-			for d in doc.get("award_schedule"):			
-				if d.get("award_type") == "Awarded":
-					supplier = d.get("bidder")
-					sq = d.get("supplier_quotation")	
-					if  frappe.db.exists({'doctype': 'Purchase Order',"supplier":supplier,\
-						"workflow_state":"Draft"}):
-						po_d =frappe.db.sql(f"SELECT name FROM `tabPurchase Order` WHERE supplier ='{supplier}'\
-							 and workflow_state='Draft' order by creation desc limit 1", as_dict=True)
-						po = po_d[0].get("name")
-						po_doc = frappe.get_doc("Purchase Order", po)
-						po_doc = append_order_items(po_doc, d, rfq.get("name"))
-						po_doc.flags.ignore_permissions = True
-						po_doc.run_method("set_missing_values")
-						po_doc.save()
-						po_doc.add_comment("Shared", text=f"{supplier} was awarded based on Reference {sq}")
-					else:
-						raise_order(d, rfq.get("name"))
-						
+			for d in doc.get("award_schedule"):	
+				already_ordered =[]
+				already_ordered = sq_item_in_po(d.get("item"), d.get("supplier_quotation"))
+				if already_ordered:  #and already_ordered[0].get("name"):
+					pass		
+				else:
+					if d.get("award_type") == "Awarded":
+						supplier = d.get("bidder")
+						sq = d.get("supplier_quotation") or \
+							get_supplier_quotation_from_tqo(supplier,opening_doc)	
+						if  frappe.db.exists({'doctype': 'Purchase Order',"supplier":supplier,\
+							"workflow_state":"Draft"}):
+							po_d =frappe.db.sql(f"SELECT name FROM `tabPurchase Order` WHERE supplier ='{supplier}'\
+								and workflow_state='Draft' order by creation desc limit 1", as_dict=True)
+							po = po_d[0].get("name")
+							po_doc = frappe.get_doc("Purchase Order", po)
+							po_doc = append_order_items(po_doc, d, rfq.get("name"))
+							po_doc.flags.ignore_permissions = True
+							po_doc.run_method("set_missing_values")
+							po_doc.save()
+							po_doc.add_comment("Shared", text=f"{supplier} was awarded based on Reference {sq}")
+						else:
+							raise_order(d, rfq.get("name"), opening_doc)
+							
 	except Exception as e:
 		frappe.response["Exception"] = e
 		frappe.throw(f"Error in Transaction because {e}")
-def raise_order(award_item_dict, rfq):
+def raise_order(award_item_dict, rfq, opening_doc =None):
 	#CONTEXT Procurement Professional Opinion
 	actual_name = award_item_dict.get("bidder")
+	supplier = actual_name
 	request_for_quotation = rfq
 	item_code = award_item_dict.get("item_code")
 	item_category = frappe.db.get_value("Item",item_code,'item_group')
@@ -749,18 +833,10 @@ def raise_order(award_item_dict, rfq):
 				
 			}
 		)
-	sq = award_item_dict.get("supplier_quotation")
+	sq = award_item_dict.get("supplier_quotation") or \
+		get_supplier_quotation_from_tqo(supplier,opening_doc)	
 	doc = append_order_items(doc, award_item_dict, request_for_quotation)
-	#print(award_item_dict.get("amount"))
-	#total_amount = award_item_dict.get("amount") or 0.0
-	#for d in doc.get("items"):
-	#	print (d.get("amount"))
-	#	total_amount+=d.get("amount")
-	#print(total_amount)
-	#frappe.response["amt"] = total_amount
-	#return
-	#doc.grand_total = flt(total_amount)
-	#doc.base_grand_total = flt(total_amount)
+	
 	doc.flags.ignore_permissions=True
 	doc.run_method("set_missing_values")
 	doc.save()

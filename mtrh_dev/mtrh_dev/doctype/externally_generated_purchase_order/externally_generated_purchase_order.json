@@ -21,6 +21,7 @@
   "column_break_12",
   "total_order_value",
   "section_break_final",
+  "total_scanned_order_value",
   "items",
   "amended_from"
  ],
@@ -31,15 +32,11 @@
    "in_list_view": 1,
    "label": "Purchase Order Number",
    "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1,
    "unique": 1
   },
   {
    "fieldname": "column_break_2",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "department",
@@ -47,31 +44,23 @@
    "in_list_view": 1,
    "label": "Department",
    "options": "Department",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_4",
-   "fieldtype": "Section Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "material_request",
    "fieldtype": "Data",
-   "label": "Material Request",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Material Request"
   },
   {
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Posting Date",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "amended_from",
@@ -86,79 +75,66 @@
    "fieldname": "items",
    "fieldtype": "Table",
    "label": "Order Items",
-   "options": "Externally Generated Purchase Order Item",
-   "show_days": 1,
-   "show_seconds": 1
+   "options": "Externally Generated Purchase Order Item"
   },
   {
    "fieldname": "supplier",
    "fieldtype": "Link",
    "label": "Supplier",
    "options": "Supplier",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_final",
-   "fieldtype": "Section Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Section Break"
   },
   {
    "default": "0.0",
+   "depends_on": "eval:doc.total_scanned_order_value == doc.total_order_value",
    "fieldname": "total_order_value",
    "fieldtype": "Float",
    "label": "Total Order Value",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "external_po_and_relevant_documentation",
    "fieldtype": "Attach",
    "label": "External PO and relevant documentation",
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_7",
-   "fieldtype": "Section Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "column_break_12",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "section_break_11",
-   "fieldtype": "Section Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "column_break_mr",
-   "fieldtype": "Column Break",
-   "show_days": 1,
-   "show_seconds": 1
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_scanned_order_value",
+   "fieldtype": "Float",
+   "label": "Total Order Value(Scanned Order)",
+   "reqd": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-09-07 09:26:15.076949",
+ "modified": "2020-10-30 15:15:55.911856",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Externally Generated Purchase Order",

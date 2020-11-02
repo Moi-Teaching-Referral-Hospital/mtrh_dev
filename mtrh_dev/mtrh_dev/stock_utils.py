@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 import frappe, json
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import get_url, cint
+from frappe.utils import get_url, cint, get_link_to_form
 from frappe.utils.background_jobs import enqueue
 from frappe import msgprint
 from frappe.model.document import Document
@@ -83,6 +83,17 @@ def raise_surplus_task_qty(item_code, quantity_required, except_warehouse):
 	frappe.response["whatremained"]=qty_needed
 	frappe.response["payload"]=warehouse_dict
 	frappe.response["global_shortage"]=global_shortage
+def validate_expiry_extension(doc,state):
+	doctype = doc.get("document_type")
+	if doctype =="Request for Quotation":
+		rfq = doc.get("quotations_and_tenders")
+		opened = frappe.db.sql(f"""SELECT name FROM `tabTender Quotation Opening`\
+			WHERE rfq_no ='{rfq}' and docstatus = 1""", as_dict=True)
+		if opened and len(opened)>0:#
+			opening_doc = get_link_to_form("Tender Quotation Opening", opened[0].get("name"))
+			frappe.throw(f"""Sorry, bids for this document have already been\
+				 opened under reference {opening_doc} and as such it is a violation of PPADR Act to extend it""")
+	return
 @frappe.whitelist()
 def get_item_default_expense_account(item_code):
 	item_defaults = get_item_defaults(item_code, frappe.db.get_single_value("Global Defaults", "default_company"))
@@ -206,7 +217,9 @@ def externally_generated_po(doc, state):
 			#frappe.db.set_value(doc.get("doctype"), doc.get("name"),"linked_po",sq_doc.get("name"))
 			
 			sq_doc.submit()
-			doc.add_comment('Comment', text="Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
+			doc.add_comment('Shared', text="Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 			frappe.msgprint("Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 		except Exception as e:
 			frappe.throw("Could not complete transaction because : {0}".format(e)) 
+def external_lpo_save_transaction(doc,state):
+	doc.validate_amount()

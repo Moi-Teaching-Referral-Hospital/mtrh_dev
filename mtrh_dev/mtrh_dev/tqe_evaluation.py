@@ -452,9 +452,9 @@ def stage_supplier_email(doc, state):
 			sq_doc.run_method("set_missing_values")
 			sq_doc.insert()
 def dispatch_staged_email(doc , state):
-	if not '-EX-' not in doc.get("reference_name"):
-		doc.set("status","Not to be sent")
-		doc.save()
+	if '-EX-'  in doc.get("reference_name"):
+		doc.db_set("status","Not to be sent")
+		#doc.save()
 	if doc.get("status") not in ["Sent"] and '-EX-' not in doc.get("reference_name"):
 		dispatch_transaction(doc)
 @frappe.whitelist()
@@ -473,8 +473,7 @@ def dispatch_transaction(document=None, docname =None):
 		if '@' in supplier_email and '.' in supplier_email:
 			doc.set("status", "Sent")
 			doc.set("supplier_email", supplier_email.strip())
-			doc.save()
-			
+			doc.save()			
 			send_notifications([supplier_email.strip()], f"{message}",\
 					f"{documenttype} - {documentname}",
 						doc2send.get("doctype"),doc2send.get("name"))

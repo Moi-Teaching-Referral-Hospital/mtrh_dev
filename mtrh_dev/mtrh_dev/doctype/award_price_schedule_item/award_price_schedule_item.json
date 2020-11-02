@@ -25,6 +25,8 @@
    "columns": 2,
    "fieldname": "item_name",
    "fieldtype": "Data",
+   "hide_days": 1,
+   "hide_seconds": 1,
    "in_global_search": 1,
    "in_list_view": 1,
    "label": "Item Name",
@@ -39,6 +41,8 @@
    "columns": 2,
    "fieldname": "item_code",
    "fieldtype": "Link",
+   "hide_days": 1,
+   "hide_seconds": 1,
    "label": "Item Code",
    "oldfieldname": "item_code",
    "oldfieldtype": "Link",
@@ -52,6 +56,8 @@
    "fieldname": "supplier_part_no",
    "fieldtype": "Data",
    "hidden": 1,
+   "hide_days": 1,
+   "hide_seconds": 1,
    "label": "Supplier Part No",
    "no_copy": 1,
    "read_only": 1
@@ -61,6 +67,8 @@
    "columns": 1,
    "fieldname": "qty",
    "fieldtype": "Float",
+   "hide_days": 1,
+   "hide_seconds": 1,
    "in_list_view": 1,
    "label": "Qty Req",
    "oldfieldname": "qty",
@@ -78,9 +86,7 @@
    "in_list_view": 1,
    "label": "Unit Price",
    "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "default": "0.0",
@@ -88,9 +94,7 @@
    "fieldtype": "Currency",
    "label": "Total Price",
    "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "reqd": 1
   },
   {
    "fieldname": "bidder",
@@ -98,13 +102,13 @@
    "in_list_view": 1,
    "label": "Bidder",
    "options": "Supplier",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "column_break_3",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "hide_days": 1,
+   "hide_seconds": 1
   },
   {
    "columns": 2,
@@ -112,10 +116,8 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Decision",
-   "options": "Awarded\nAlternative 1\nAlternative 2\nAlternative 3",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "options": "\nAwarded\nAlternative 1\nAlternative 2\nAlternative 3\nSend for Renegotiation\nRe-Tender or Refloat Quotations\nTerminate",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -123,13 +125,13 @@
    "fieldtype": "Check",
    "label": "Sample Provided?",
    "print_hide": 1,
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "fieldname": "brand",
    "fieldtype": "Link",
+   "hide_days": 1,
+   "hide_seconds": 1,
    "label": "Brand",
    "oldfieldname": "brand",
    "oldfieldtype": "Link",
@@ -141,6 +143,8 @@
    "columns": 1,
    "fieldname": "uom",
    "fieldtype": "Link",
+   "hide_days": 1,
+   "hide_seconds": 1,
    "label": "Unit of Issue",
    "oldfieldname": "uom",
    "oldfieldtype": "Link",
@@ -157,14 +161,12 @@
    "label": "Supplier Quotation",
    "options": "Supplier Quotation",
    "print_hide": 1,
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2020-10-16 13:00:33.633786",
+ "modified": "2020-11-02 15:11:38.516878",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Award Price Schedule Item",

@@ -316,7 +316,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-10-25 15:30:02.683648",
+ "modified": "2020-11-02 10:50:49.687131",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Opening",
@@ -362,5 +362,6 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "track_changes": 1
+ "track_changes": 1,
+ "track_seen": 1
 }

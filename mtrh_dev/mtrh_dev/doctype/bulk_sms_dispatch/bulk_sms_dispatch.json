@@ -1,0 +1,173 @@
+{
+ "actions": [],
+ "allow_copy": 1,
+ "autoname": "BULK-SMS-.YYYY.-.####",
+ "creation": "2020-10-27 16:12:25.770535",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "is_internal_dispatch",
+  "sms_subject",
+  "send_to",
+  "customer",
+  "supplier",
+  "sales_partner",
+  "department",
+  "branch",
+  "create_receiver_list",
+  "receiver_list",
+  "column_break9",
+  "message",
+  "total_characters",
+  "total_messages",
+  "send_sms",
+  "evaluated",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "send_to",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Send To",
+   "options": "\nAll Contact\nAll Customer Contact\nAll Supplier Contact\nAll Sales Partner Contact\nAll Lead (Open)\nAll Employee (Active)\nAll Sales Person"
+  },
+  {
+   "depends_on": "eval:doc.send_to=='All Customer Contact'",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "depends_on": "eval:doc.send_to=='All Supplier Contact'",
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.send_to=='All Sales Partner Contact'",
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "label": "Sales Partner",
+   "options": "Sales Partner"
+  },
+  {
+   "depends_on": "eval:doc.send_to=='All Employee (Active)'",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "depends_on": "eval:doc.send_to=='All Employee (Active)'",
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "depends_on": "eval:doc.docstatus!=1",
+   "fieldname": "create_receiver_list",
+   "fieldtype": "Button",
+   "label": "Create Receiver List",
+   "options": "create_receiver_list"
+  },
+  {
+   "fieldname": "receiver_list",
+   "fieldtype": "Code",
+   "label": "Receiver List"
+  },
+  {
+   "fieldname": "column_break9",
+   "fieldtype": "Column Break",
+   "width": "50%"
+  },
+  {
+   "description": "Messages greater than 160 characters will be split into multiple messages",
+   "fieldname": "message",
+   "fieldtype": "Text",
+   "label": "Message",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total_characters",
+   "fieldtype": "Int",
+   "label": "Total Characters",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_messages",
+   "fieldtype": "Int",
+   "label": "Total Message(s)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "send_sms",
+   "fieldtype": "Button",
+   "hidden": 1,
+   "label": "Send SMS",
+   "options": "send_sms"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Bulk SMS Dispatch",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "default": "0",
+   "description": "Tick this if the SMS dispatch is intended for internal recipients such as Employees. Other recipients such as customers and suppliers are external. As such they require CEO Approval. ",
+   "fieldname": "is_internal_dispatch",
+   "fieldtype": "Check",
+   "label": "Does NOT require CEO Approval"
+  },
+  {
+   "default": "0",
+   "fieldname": "evaluated",
+   "fieldtype": "Check",
+   "label": "Evaluated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sms_subject",
+   "fieldtype": "Data",
+   "label": "SMS Subject",
+   "reqd": 1
+  }
+ ],
+ "icon": "fa fa-mobile-phone",
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2020-10-30 14:31:40.405711",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Bulk SMS Dispatch",
+ "name_case": "UPPER CASE",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "sms_subject",
+ "track_changes": 1
+}

@@ -129,8 +129,8 @@ def log_sms(response, payload):
 	for content in payload:
 		recipient = content.get("msisdn")
 		message = content.get("message")
-		print(content)
-		frappe.response["content_to_log"]=content
+		#print(content)
+		#frappe.response["content_to_log"]=content
 		sms_entry_doc = frappe.new_doc('SMS Log')
 		sms_entry_doc.update(
 				{
@@ -141,7 +141,8 @@ def log_sms(response, payload):
 					"sent_on": frappe.utils.data.now_datetime(),
 					"no_of_requested_sms": 0,
 					"no_of_sent_sms":0,
-					"status": "Sent"
+					"status": "Sent",
+					"is_not_from_sms_center":True
 				}
 			)
 		sms_entry_doc.insert(ignore_permissions=True)
