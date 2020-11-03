@@ -1,7 +1,7 @@
 import frappe, json
 from frappe import _
 from frappe.utils.file_manager import check_max_file_size, get_content_hash, get_file_name, get_file_data_from_hash
-from frappe.utils import get_files_path,cstr ,get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt
+from frappe.utils import get_files_path,cstr ,get_hook_method, call_hook_method, random_string, get_fullname, today, cint, flt, get_url_to_form
 import os, base64
 from six import text_type, string_types
 import mimetypes
@@ -699,13 +699,23 @@ def assign_department_permissions(doc,state):
 			frappe.msgprint("Department permissions have not been applied since the user does not have a log in account.")
 	else:
 		frappe.throw("Please ensure that user has log in credentials and is allocated to a department")
-def send_comment_sms(doc,state):
+def process_comment(doc,state):
 	if doc.reference_doctype and doc.reference_name and doc.content:
-		mentions = extract_mentions(doc.content)
-
-		if not mentions:
-			return
 		sender_fullname = get_fullname(frappe.session.user)
+		mentions = extract_mentions(doc.content)
+		if not mentions:
+			#ALERT ALL USERS WHO HAVE EVER ACTIONED ON THIS DOCUMENT.
+			if  doc.get("comment_type") == "Comment":
+				list_of_action_users = frappe.db.get_all("Comment", filters = {"reference_name": doc.reference_name, "comment_type": ["IN", ["Workflow","Created","Edit","Shared","Comment"]]}, fields=["comment_email"])
+				emails =[x.get("comment_email") for x in list_of_action_users]
+				unique_list = list(dict.fromkeys(emails))
+				unique_list.remove(frappe.session.user)
+				email_message = doc.content
+				docname = doc.get("reference_name")
+				subject = f"Comment Alert - {docname} from {sender_fullname}"
+				list(map(lambda x: send_notifications(x, email_message, subject),unique_list))
+			return
+		
 		#title = get_title(doc.reference_doctype, doc.reference_name)
 		reference_document = frappe.get_doc(doc.reference_doctype, doc.reference_name)
 		recipients = [frappe.db.get_value("User", {"enabled": 1, "name": name, "user_type": "System User", "allowed_in_mentions": 1}, "email")
@@ -826,6 +836,20 @@ def sync_purchase_receipt_attachments(doc,state):
 			document.run_method("set_missing_values")
 			document.insert()
 		return documents, docs
+def get_link_to_form_new_tab(doctype, name, label=None):
+	if not label: label = name
+
+	return """<a target="_blank" href="{0}">{1}</a>""".format(get_url_to_form(doctype, name), label)
+def get_attachment_urls(docname):
+	if not isinstance(docname, list):
+		docname =[docname]
+	refname_q = '('+','.join("'{0}'".format(i) for i in docname)+')'
+	attachments_list_query =f"""SELECT file_url, file_name FROM `tabFile`\
+		WHERE attached_to_name IN {refname_q}"""
+	attachments_list = frappe.db.sql(attachments_list_query, as_dict=True)
+	urls =["""<a target="_blank" href="{0}">{1}</a>""".format(x.get("file_url"), x.get("file_name")) for x in attachments_list]
+	unique_urls = list(dict.fromkeys(urls))
+	return unique_urls
 def update_pinv_attachments_before_save(doc , state):
 	purchase_receipt = doc.get("items")[0].purchase_receipt
 	purchase_invoice = doc.get("name")
@@ -1102,8 +1126,10 @@ def daily_pending_work_reminder():
 	return user_pending_counts
 
 def send_notifications(recipients, message, subject):
+	if not isinstance(recipients, list):
+		recipients =[recipients]
 	email_args = {
-		"recipients": [recipients],
+		"recipients": recipients,
 		"message": _(message),
 		"subject": subject
 	}
@@ -1283,3 +1309,18 @@ def enforce_unique_item_name(doc, state):
 		else:
 			frappe.throw(f"Sorry {item_name} already exists!")
 	return
+def append_attachments_to_file(doc, state):
+	meta  = meta = frappe.get_meta(doc.get("doctype"))
+	fieldnames =[x.get("fieldname") for x in meta.get("fields") \
+		 if x.get("fieldtype") in ["Attach","Attach Image"]]
+	if fieldnames:
+		attachment_urls = [doc.get(x) for x in fieldnames if doc.get(x)]
+		from frappe.utils.file_manager import save_url
+		for url in attachment_urls:
+			#if not file_exists(url, doc.get("name"))
+			filedict = frappe.db.get_value("File",{"file_url": url}\
+				,['file_name','folder'],as_dict=1)
+			save_url(url, filedict.get("file_name"), doc.get("doctype"),\
+				doc.get("name"), filedict.get("folder"),True,None)
+	return
+	

@@ -96,7 +96,8 @@ doc_events = {
 	"*": {
 		"before_save": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
-			"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields"
+			"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields",
+			"mtrh_dev.mtrh_dev.utilities.append_attachments_to_file"
 		],
 		"before_submit": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"

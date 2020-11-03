@@ -15,6 +15,23 @@ function page_changed(event) {
 					if (frm.doc.__unsaved===1) {
 						return;
 					}
+					//////
+					if (!frm.is_new()) {
+						console.log("REFRESH");
+						frappe.call({
+							"method":"mtrh_dev.mtrh_dev.tender_quotation_utils.document_dashboard",
+								args: {
+										"docname":frm.doc.name,
+										"doctype":frm.doc.doctype
+								},
+							"callback":function(e){
+								console.log("DASHBOARD: " + e.message);
+								frm.dashboard.add_section(e.message);
+							}
+						});
+						frm.dashboard.show();
+					}
+					//////
 					var state_fieldname = frappe.workflow.get_state_fieldname(frm.doctype);
 					function set_default_state() {
 						var default_state = frappe.workflow.get_default_state(frm.doctype, frm.doc.docstatus);

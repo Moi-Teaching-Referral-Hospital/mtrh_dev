@@ -18,9 +18,10 @@ class ProcurementProfessionalOpinion(Document):
 		self.validate_workflow_state()
 		docname = self.get("name")
 		frappe.db.sql(f"""DELETE FROM `tabAward Price Schedule Item` WHERE parent ='{docname}';""")
-		#self.add_comment("Shared", text ="Deleted existing award schedule")
+		self.add_comment("Shared", text ="Deleted existing award schedule")
 		self.notify_update()
-		frappe.msgprint(_('Document updated successfully'))
+		frappe.msgprint(_('Document updated successfully, please refresh the page to view its updated version'))
+		return
 	def validate_workflow_state(self):
 		if not self.workflow_state == "Draft":
 			frappe.throw(_("Sorry, operation only permitted for Draft workflow state"))

@@ -13,10 +13,10 @@ from datetime import date, timedelta
 from frappe.core.doctype.communication.email import make
 from mtrh_dev.mtrh_dev.workflow_custom_action import send_tqe_action_email
 STANDARD_USERS = ("Guest", "Administrator")
-from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url,get_fullname, get_datetime, flt, get_date_str, format_datetime, fmt_money, money_in_words, get_url, get_link_to_form
+from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url,get_fullname, get_datetime, flt, get_date_str, format_datetime, fmt_money, money_in_words, get_url
 from mtrh_dev.mtrh_dev.workflow_custom_action import send_notifications
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
-from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state
+from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state,get_link_to_form_new_tab,get_attachment_urls
 
 
 class TenderQuotationUtils(Document):
@@ -276,7 +276,7 @@ def get_material_requests_purpose(material_reqs):
 		for mr in material_reqs:
 			document = frappe.get_doc("Material Request", mr)
 			purpose = document.get("reason_for_this_request") or "unspecified"
-			mr_link = get_link_to_form("Material Request", mr)
+			mr_link = get_link_to_form_new_tab("Material Request", mr)
 			requester = document.get("requester") or get_fullname(document.get("owner"))
 			reason+=f"<h3>{mr_link}:</h3> <p>Reason from User Request: {purpose} - <b>User: {requester}</b></p>"
 	return reason
@@ -734,12 +734,12 @@ def document_dashboard(doctype, docname):
 	to_return ="<h3>Check Attachments and Linked Documents</h3>"
 	document = frappe.get_doc(doctype, docname)
 	if doctype =="Procurement Professional Opinion":
-		opening_report = get_link_to_form("Tender Quotation Opening", document.get("reference_number"))
-		authority_to_procure = get_link_to_form("Request for Quotation",document.get("request_for_quotation"))
+		opening_report = get_link_to_form_new_tab("Tender Quotation Opening", document.get("reference_number"))
+		authority_to_procure = get_link_to_form_new_tab("Request for Quotation",document.get("request_for_quotation"))
 		rfq = document.get("request_for_quotation")
 		material_req_q = frappe.db.sql(f"SELECT distinct material_request FROM `tabRequest for Quotation Item`\
 			WHERE parent ='{rfq}'", as_dict=True)
-		material_request_docs =[get_link_to_form("Material Request", x.get("material_request")) for x in material_req_q]
+		material_request_docs =[get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in material_req_q]
 		
 		material_rq_links = ''+', '.join("'{0}'".format(i) for i in material_request_docs)+''
 		#reference_number
@@ -766,11 +766,97 @@ def document_dashboard(doctype, docname):
 			to_return+= "<h3>Check Attachments and Linked Documents</h3><table border='1' width='100%' >"
 			to_return += "<th>Document</th><th>Link</th>"
 
-			rfq_links  =[get_link_to_form("Request for Quotation", x.get("request_for_quotation")) for x in quotations_q]
-			professional_opinion_links = [get_link_to_form("Procurement Professional Opinion", x.get("name")) for x in professional_opinion_q]
+			rfq_links  =[get_link_to_form_new_tab("Request for Quotation", x.get("request_for_quotation")) for x in quotations_q]
+			professional_opinion_links = [get_link_to_form_new_tab("Procurement Professional Opinion", x.get("name")) for x in professional_opinion_q]
 			to_return+= f"<tr><td>Authority to Procure: </td><td>{rfq_links}</td></tr>"
 			to_return+= f"<tr><td>Award Report:	</td><td>{professional_opinion_links}</td></tr>"
 			to_return+= "</table>"
+	elif doctype == "Request for Quotation":
+		rfq = document.get("name")
+		
+		#GET PROFESSIONAL OPIONIONS
+		professional_opinion_q = frappe.db.sql(f"""SELECT name FROM `tabProcurement Professional Opinion`\
+				 WHERE request_for_quotation = '{rfq}' """,as_dict =True)
+		professional_opinion_links = [get_link_to_form_new_tab("Procurement Professional Opinion", x.get("name")) for x in professional_opinion_q] or "QUOTATIONS NOT OPENED YET!"
+		
+		#GET LINKED MATERIAL REQUESTS
+		material_req_q = frappe.db.sql(f"SELECT distinct material_request FROM `tabRequest for Quotation Item`\
+			WHERE parent ='{rfq}'", as_dict=True)
+		material_request_docs =[get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in material_req_q]
+		material_rq_links = ''+', '.join("'{0}'".format(i) for i in material_request_docs)+''
+
+		#GET QUOTATIONS OPENING DOCUMENT AND INFO SUCH AS NUMBER OF INVITED AND SUBMITTED QUOTES
+		opening_document = frappe.db.sql(f"SELECT `name`, `bidders_invited`, `respondents`, `response`, `opening_status` FROM `tabTender Quotation Opening`\
+			WHERE rfq_no ='{rfq}'", as_dict=True)
+		opening_doc_link =[get_link_to_form_new_tab("Tender Quotation Opening", x.get("name")) for x in opening_document] or "NO SUBMISSIONS FROM VENDORS/SUPPLIERS"
+		opening_doc_info = ""
+		if opening_document and opening_document[0]:
+			no_responded = opening_document[0].get("respondents")
+			response_rate = int(opening_document[0].get("response"))
+			no_invited = opening_document[0].get("bidders_invited")
+			open_status = opening_document[0].get("opening_status")
+			opening_doc_info = f" - Vendors Invited: <b>{no_invited}</b> | No. Responded: <b>{no_responded}</b> | Response Rate: <b>{response_rate}%</b> - <b>{open_status}</b>"
+
+		to_return+= "<table border='1' width='100%' >"
+		to_return += "<th>Document</th><th>Link</th>"
+
+		to_return+= f"<tr><td>Material Requests:</td><td>{material_rq_links}</td></tr>"
+		to_return+= f"<tr><td>Opening Report</td><td>{opening_doc_link} {opening_doc_info} </td></tr>"
+		to_return+= f"<tr><td>Procurement Professional Opinion: </td><td>{professional_opinion_links}</td></tr>"
+		
+		to_return+= "</table>"
+	elif doctype == "Purchase Invoice":
+		#LINKED PURCHASE RECEIPTS.
+		all_linked_documents= []
+		this_invoice_no = document.get("name")
+		#purchase_receipts = frappe.db.sql(f"""SELECT `purchase_receipt` FROM `tabPurchase Invoice Item`\
+		#		 WHERE name = '{this_invoice_no}';""",as_dict =True)
+		purchase_receipts_a = [x.get("purchase_receipt") for x in document.get("items")]
+		purchase_receipts = list(dict.fromkeys(purchase_receipts_a))
+		linked_purchase_receipts = [get_link_to_form_new_tab("Purchase Receipts", x) for x in purchase_receipts]
+		#LINKED INSPECTION DOCUMENTS
+		purchase_receipts_arr = [x for x in purchase_receipts]
+		all_linked_documents.extend(purchase_receipts_arr)
+		pr_q = '('+','.join("'{0}'".format(i) for i in purchase_receipts_arr)+')'
+		quality_inspection_q = frappe.db.sql(f"""SELECT name FROM `tabQuality Inspection`\
+				 WHERE reference_name IN {pr_q} """,as_dict =True)
+		linked_quality_inspections = [get_link_to_form_new_tab("Quality Inspection", x.get("name")) for x in quality_inspection_q]
+		quality_inspection_arr =[x.get("name") for x in quality_inspection_q]
+		all_linked_documents.extend(quality_inspection_arr)
+		#LINKED PURCHASE ORDERS
+		purchase_orders_list = [x.get("purchase_order") for x in document.get("items")]
+		purchase_orders = list(dict.fromkeys(purchase_orders_list))
+		linked_purchase_orders = [get_link_to_form_new_tab("Purchase Order", x) for x in purchase_orders]
+		print(purchase_orders)
+		linked_material_requests=[]
+		#LINKED MATERIAL REQUESTS
+		if purchase_orders:
+			all_linked_documents.extend(purchase_orders)
+			purchase_order_q_str = '('+','.join("'{0}'".format(i) for i in purchase_orders)+')'
+			mrs = frappe.db.sql(f"""SELECT DISTINCT material_request\
+				FROM `tabPurchase Order Item`\
+					WHERE parent IN {purchase_order_q_str}""", as_dict=True)
+			if isinstance(mrs, list) and mrs[0].get("material_request"):
+				material_requests = [x.get("material_request") for x in mrs]
+				linked_material_requests =  [get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in mrs]
+				all_linked_documents.extend(material_requests)
+		d = get_attachment_urls(all_linked_documents)
+
+		if not linked_material_requests: linked_material_requests =  "Check Uploaded Documents. This request was generated outside this system."
+
+		to_return+= "<table border='1' width='100%' >"
+		to_return += "<th>Document</th><th>Link</th>"
+
+		to_return+= f"<tr><td>Material Requests:</td><td>{linked_material_requests}</td></tr>"
+		to_return+= f"<tr><td>Purchase Orders</td><td>{linked_purchase_orders} </td></tr>"
+		to_return+= f"<tr><td>Linked GRN/Deliveries: </td><td>{linked_purchase_receipts}</td></tr>"
+		to_return+= f"<tr><td>Linked Inspection Documents: </td><td>{linked_quality_inspections}</td></tr>"
+		to_return+= f"<tr><td>Paper Document Attachments: </td><td>{d}</td></tr>"
+		
+		to_return+= "</table>"
+
+	elif doctype == "Payment Request":
+		pass
 	return to_return
 def sq_item_in_po(item, sq):
 	'''return frappe.db.sql(f"SELECT name FROM `tabPurchase Order Item` WHERE item_code='{item}'\
@@ -799,7 +885,7 @@ def raise_po_on_professional_opinion_submit(doc):
 								and workflow_state='Draft' order by creation desc limit 1", as_dict=True)
 							po = po_d[0].get("name")
 							po_doc = frappe.get_doc("Purchase Order", po)
-							po_doc = append_order_items(po_doc, d, rfq.get("name"))
+							po_doc = append_order_items(po_doc, d, rfq.get("name"), sq)
 							po_doc.flags.ignore_permissions = True
 							po_doc.run_method("set_missing_values")
 							po_doc.save()
@@ -835,7 +921,7 @@ def raise_order(award_item_dict, rfq, opening_doc =None):
 		)
 	sq = award_item_dict.get("supplier_quotation") or \
 		get_supplier_quotation_from_tqo(supplier,opening_doc)	
-	doc = append_order_items(doc, award_item_dict, request_for_quotation)
+	doc = append_order_items(doc, award_item_dict, request_for_quotation, sq)
 	
 	doc.flags.ignore_permissions=True
 	doc.run_method("set_missing_values")
@@ -844,7 +930,7 @@ def raise_order(award_item_dict, rfq, opening_doc =None):
 	po = doc.get("name")
 	frappe.msgprint(f"Purchase Order {po}\
 		has been drafted successfully and posted in this system for further action.")
-def append_order_items(po_doc, items, request_for_quotation):
+def append_order_items(po_doc, items, request_for_quotation, sq = None):
 	#Reference is the Request for Quotation
 	from mtrh_dev.mtrh_dev.stock_utils import get_item_default_expense_account
 	item_code = items.get("item_code")
@@ -852,7 +938,7 @@ def append_order_items(po_doc, items, request_for_quotation):
 		WHERE name = (SELECT material_request FROM `tabRequest for Quotation Item` WHERE \
 			parent ='{request_for_quotation}' and item_code = '{item_code}' ) """, as_dict=True) 
 	department = departmentqry[0].get("department")
-	supplier_quotation = items.get("supplier_quotation")
+	supplier_quotation = items.get("supplier_quotation") or sq
 	material_request = departmentqry[0].get("name")
 	doc = frappe.get_doc("Item", item_code)
 	item_group = doc.get("item_group")

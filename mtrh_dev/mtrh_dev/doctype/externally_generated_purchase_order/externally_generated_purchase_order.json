@@ -12,10 +12,11 @@
   "section_break_4",
   "department",
   "company",
-  "section_break_7",
   "material_request",
-  "column_break_mr",
+  "section_break_7",
   "external_po_and_relevant_documentation",
+  "original_purchase_request_scan",
+  "original_tendering_documents_scan",
   "section_break_11",
   "posting_date",
   "column_break_12",
@@ -106,7 +107,7 @@
   {
    "fieldname": "external_po_and_relevant_documentation",
    "fieldtype": "Attach",
-   "label": "External PO and relevant documentation",
+   "label": "External PO(Scanned)",
    "reqd": 1
   },
   {
@@ -122,19 +123,28 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_mr",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "total_scanned_order_value",
    "fieldtype": "Float",
    "label": "Total Order Value(Scanned Order)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "original_purchase_request_scan",
+   "fieldtype": "Attach",
+   "label": "Original Purchase Request (Scan)",
+   "reqd": 1
+  },
+  {
+   "description": "1. Tender Awards and/or Procurement Professional Opinion\n3. Contracts where necessary\n4. Commissioning certificates where necessary",
+   "fieldname": "original_tendering_documents_scan",
+   "fieldtype": "Attach",
+   "label": "Original Tendering Documents (Scan)",
    "reqd": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-10-30 15:15:55.911856",
+ "modified": "2020-11-03 12:07:11.191760",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Externally Generated Purchase Order",
