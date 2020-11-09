@@ -72,11 +72,34 @@ frappe.query_reports["Vote Balance Report"] = {
 			label: __("Show Cumulative Amount"),
 			fieldtype: "Check",
 			default: 0,
-		},
-	]
+		}
+	],
+	onload: function(report) {
+		var ultimate_filters =[]
+		report.page.add_inner_button(__("Show Votebook Trends"), function() {
+			//console.log(report.report_settings.filters)
+			var the_filters = report.report_settings.filters
+			the_filters.forEach(function(d){
+				var obj ={}
+				var thefield = String(d.fieldname)
+				console.log(thefield)
+				var thevalue = frappe.query_report.get_filter_value(thefield)
+				obj.thefield = thevalue
+				ultimate_filters.push(obj)
+			})
+			console.log(ultimate_filters)
+			//frappe.msgprint("Showing report for "+report);
+		});
+	}
 }
 
 erpnext.dimension_filters.forEach((dimension) => {
 	frappe.query_reports["Vote Balance Report"].filters[4].options.push(dimension["document_type"]);
 });
-console.log(JSON.stringify(frappe.query_reports["Vote Balance Report"].filters))
+//console.log(JSON.stringify(frappe.query_reports["Vote Balance Report"].filters))
+//frappe.ui.form.on('Vote Balance Report', {
+  //  refresh: function(frm) {
+
+    
+  //}
+//});

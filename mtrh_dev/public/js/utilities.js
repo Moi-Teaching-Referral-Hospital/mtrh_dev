@@ -2,36 +2,52 @@
 // the following two handles will watch the page changes everywhere
 $(window).on('hashchange', page_changed);
 $(window).on('load', page_changed);
-
+//$(window).on('refresh', page_changed);
 function page_changed(event) {
     // waiting for page to load completely
     frappe.after_ajax(function () {
-        var route = frappe.get_route();
+		var route = frappe.get_route();
 
         if (route[0] == "Form") {
+			console.log("1. " + route[1] + ", 2: " + route[2] + ", 3: " + cur_frm.doc.name + ", 4: " + cur_frm.doc.doctype)
+			frappe.call({
+				"method":"mtrh_dev.mtrh_dev.tender_quotation_utils.document_dashboard",
+					args: {
+						"docname": route[2],
+						"doctype": route[1]
+					},
+				"callback":function(e){
+					console.log("DASHBOARD: " + e.message);
+					//frm.dashboard.refresh();
+					//setTimeout(() => {
+						//$(".form-dashboard-section.custom").remove();
+						//$("#divdash").remove();
+					cur_frm.dashboard.add_section("<div id='divdash'>" + e.message + "</div>");
+					cur_frm.dashboard.show();
+					//}, 2000);
+				}
+			});
             frappe.ui.form.on(route[1], {
+				onload_post_render: function(frm){
+					
+				},
                 refresh: function (frm) {
-                    // if the loaded doc is dirty, don't show workflow buttons
+					// if the loaded doc is dirty, don't show workflow buttons
+					console.log("Beginning execution...")
 					if (frm.doc.__unsaved===1) {
+						console.log("Is Dirty")
 						return;
 					}
+
 					//////
+					//const { we_been_here } = localStorage;
 					if (!frm.is_new()) {
-						console.log("REFRESH");
-						frappe.call({
-							"method":"mtrh_dev.mtrh_dev.tender_quotation_utils.document_dashboard",
-								args: {
-										"docname":frm.doc.name,
-										"doctype":frm.doc.doctype
-								},
-							"callback":function(e){
-								console.log("DASHBOARD: " + e.message);
-								frm.dashboard.add_section(e.message);
-							}
-						});
-						frm.dashboard.show();
+						//console.log("REFRESH -> " + we_been_here);
+						//localStorage.setItem("we_been_here", true);
+						
 					}
 					//////
+					
 					var state_fieldname = frappe.workflow.get_state_fieldname(frm.doctype);
 					function set_default_state() {
 						var default_state = frappe.workflow.get_default_state(frm.doctype, frm.doc.docstatus);
@@ -64,7 +80,11 @@ function page_changed(event) {
 						transitions.forEach(d => {
 							if (frappe.user_roles.includes(d.allowed) && has_approval_access(d)) {
 								frm.page.add_action_item(__(d.action), function() {
-									if(frm.doc.workflow_state.toLowerCase().includes("SCM") || d.action.toLowerCase().includes("confirm") || d.action.toLowerCase().includes("approve") || d.action.toLowerCase().includes("cancel") || d.action.toLowerCase().includes("submit") || d.action.toLowerCase().includes("reject") || d.action.toLowerCase().includes("terminate") || d.action.toLowerCase().includes("recall") || d.action.toLowerCase().includes("confirm") || d.action.toLowerCase().includes("send")){
+									workflowstate_includes_scm = false;
+									if(frm.doc.workflow_state){
+										workflowstate_includes_scm = frm.doc.workflow_state.toLowerCase().includes("scm");
+									}
+									if(workflowstate_includes_scm || d.action.toLowerCase().includes("confirm") || d.action.toLowerCase().includes("approve") || d.action.toLowerCase().includes("cancel") || d.action.toLowerCase().includes("submit") || d.action.toLowerCase().includes("reject") || d.action.toLowerCase().includes("terminate") || d.action.toLowerCase().includes("recall") || d.action.toLowerCase().includes("confirm") || d.action.toLowerCase().includes("send")){
 										frappe.confirm(
 											'Are you sure you want to "' + d.action + '" the document ' + frm.doc.name + '?',
 											function(){

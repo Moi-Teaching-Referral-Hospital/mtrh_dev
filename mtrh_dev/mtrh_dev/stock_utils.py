@@ -213,13 +213,45 @@ def externally_generated_po(doc, state):
 			sq_doc.run_method("set_missing_values")
 			sq_doc.save()
 			
-			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}' WHERE parent ='{1}'""".format(doc.get("department"), sq_doc.get("name")))	
+			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}', externally_generated_order='{1}' WHERE parent ='{2}'""".format(doc.get("department"),sq_doc.get("name"), sq_doc.get("name")))	
 			#frappe.db.set_value(doc.get("doctype"), doc.get("name"),"linked_po",sq_doc.get("name"))
-			
-			sq_doc.submit()
+			if doc.get("is_approved"):
+				sq_doc.submit()
 			doc.add_comment('Shared', text="Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 			frappe.msgprint("Purchase Order {0} has been generated and submitted in this system ".format(sq_doc.get("name")))
 		except Exception as e:
 			frappe.throw("Could not complete transaction because : {0}".format(e)) 
+
 def external_lpo_save_transaction(doc,state):
 	doc.validate_amount()
+def sync_external_order_attachments(doc, state):
+	##CONTEXT IS PURCHASE ORDER
+	externally_generated_items = [x.get("externally_generated_order") for x in doc.get("items") if x.get("externally_generated_order")]
+	if isinstance(externally_generated_items, list) and externally_generated_items:
+		attachments = """"""
+def update_mr_reference_number():
+	#ORIGINAL_USER_REQUEST
+	stock_entries = frappe.db.sql("""SELECT name FROM `tabStock Entry` WHERE ORIGINAL_USER_REQUEST is NULL;""", as_dict=True)
+	print(stock_entries)
+	if isinstance(stock_entries, list) and  stock_entries:
+		documents = [frappe.get_doc("Stock Entry",x.get("name")) for x in stock_entries]
+		for d in documents:
+			mr = d.get("items")[0].get("material_request")
+			if mr:
+				d.db_set("ORIGINAL_USER_REQUEST", mr)	
+def validate_material_request(doc, state):
+	from mtrh_dev.mtrh_dev.utilities import get_link_to_form_new_tab
+	mr_item_group = doc.item_category
+	items = doc.get("items")
+	items_not_for_group =[x.get("item_code") for x in items \
+		if not frappe.db.get_value("Item", {"item_group": mr_item_group, \
+			"item_code":x.get("item_code")},"name")]
+	itemlist = "<p></p>"
+	for d in items_not_for_group:
+		item_dict = frappe.db.get_value("Item", d, ["item_name","item_group"], as_dict =True)
+		item_group = item_dict.get("item_group")
+		link_to_item = get_link_to_form_new_tab("Item",d, item_dict.get("item_name"))
+		itemlist += f"<li>{link_to_item} : {item_group}</li>"
+	if items_not_for_group and len(items_not_for_group)>0:
+		frappe.throw(f"""These items have been wrongly placed under {mr_item_group}: {itemlist}""","Error items")
+	return

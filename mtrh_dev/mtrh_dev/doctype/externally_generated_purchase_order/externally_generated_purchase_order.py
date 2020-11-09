@@ -15,4 +15,6 @@ class ExternallyGeneratedPurchaseOrder(Document):
 			attachment = self.get("external_po_and_relevant_documentation")
 	def before_submit(self):
 		self.validate_amount()
-
+		self.migrate_links()
+	def migrate_links(self):
+		pass

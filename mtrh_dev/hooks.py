@@ -61,7 +61,7 @@ app_include_js = ["/assets/mtrh_dev/js/utilities.js"]
 #			"UOM","Item Group","Supplier"]
 #,"Tender Number","Tender Quotation Award",{"dt":"Item","filters":{"creation":[">","2020-05-26"],"disabled":"0"}}
 #fixtures =["Email Account"]
-
+fixtures =["Naming Series", "Role", "Role Profile", "Workflow","Custom Script","Server Script",'Workflow State','Workflow Action Master']
 
 default_mail_footer = "MTRH Enterprise System"
 # Installation
@@ -96,38 +96,33 @@ doc_events = {
 	"*": {
 		"before_save": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
+			"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
 			"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields",
 			"mtrh_dev.mtrh_dev.utilities.append_attachments_to_file"
 		],
 		"before_submit": [
-			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
+			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 		],
 		"before_cancel": [
-			"mtrh_dev.mtrh_dev.utilities.log_time_to_action"
+			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
+			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 		]
 	},
+	("Purchase Order", "Material Request"):{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_budget_exists"
+	},
 	"Material Request":{
-		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",	
-		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log",		
-		"before_submit":["mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"mtrh_dev.mtrh_dev.workflow_custom_action.auto_generate_purchase_order_by_material_request"]
+		"before_save":["mtrh_dev.mtrh_dev.stock_utils.validate_material_request"],		
+		"before_submit":["mtrh_dev.mtrh_dev.workflow_custom_action.auto_generate_purchase_order_by_material_request"]
 	},
 	"Tender Quotations Evaluations":{
-		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"before_submit": ["mtrh_dev.mtrh_dev.tqe_on_submit_operations.apply_tqe_operation", "mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
-		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
-	},
-	"Procurement Plan":{
-		"before_save":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"before_submit":"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
+		"before_submit": ["mtrh_dev.mtrh_dev.tqe_on_submit_operations.apply_tqe_operation"]
 	},
 	"Purchase Order":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status", "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],
-		"before_submit":"mtrh_dev.mtrh_dev.utilities.validate_budget",
-		"on_cancel": "mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-		"on_submit": "mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"	
+		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status",
+		 "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],
+		 "on_submit": "mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"	
 	},
 	"Request for Quotation":{
 		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status",
@@ -139,22 +134,18 @@ doc_events = {
 		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt",
-		"mtrh_dev.mtrh_dev.utilities.process_workflow_log"]
+		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt"]
 	},
 	"Quality Inspection":{
-		"before_save":["mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_quality_inspection_item",
-		 			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
-		"on_submit":["mtrh_dev.mtrh_dev.purchase_receipt_utils.update_percentage_inspected",
-				"mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"],
-		"before_submit":"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
+		"before_save":["mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_quality_inspection_item"],
+		"on_submit":["mtrh_dev.mtrh_dev.purchase_receipt_utils.update_percentage_inspected", "mtrh_dev.mtrh_dev.tqe_evaluation.create_grn_qualityinspectioncert_debitnote_creditnote"]
 	},
 	"Store Allocation":{
 		"before_save":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.check_duplicate_allocation",
 		"on_submit":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.insert_user_permissions"
 	},
 	"Stock Reconciliation":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.process_workflow_log", "mtrh_dev.mtrh_dev.stock_utils.stock_reconciliation_set_default_price"]
+		"before_save":["mtrh_dev.mtrh_dev.stock_utils.stock_reconciliation_set_default_price"]
 		#"on_submit":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.insert_user_permissions"
 	},
 	"Item":{
@@ -163,12 +154,8 @@ doc_events = {
 		"mtrh_dev.mtrh_dev.utilities.enforce_variants"],
 		"on_submit":"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations"
 	},
-	"Stock Entry":{
-		"before_save": "mtrh_dev.mtrh_dev.utilities.process_workflow_log"
-	},
 	"Document Expiry Extension":{
-		"before_save": ["mtrh_dev.mtrh_dev.stock_utils.validate_expiry_extension",
-		"mtrh_dev.mtrh_dev.utilities.process_workflow_log"],
+		"before_save": ["mtrh_dev.mtrh_dev.stock_utils.validate_expiry_extension"],
 		"on_submit": "mtrh_dev.mtrh_dev.stock_utils.document_expiry_extension"	
 	},
 	"Chat Message":{

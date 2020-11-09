@@ -175,12 +175,12 @@ def process_workflow_log(doc, state):
 		the_decision = "Document Approved!"
 		
 		#LET THE USER GIVE A MEMO FOR APPROVING DOCUMENT.
-		comment_on_action(doc, state)
+		#comment_on_action(doc, state)
 	elif state == "on_cancel":
 		the_decision = "Document Cancelled/Revoked!"
 		
 		#LET THE USER GIVE A MEMO FOR CANCELLING DOCUMENT.
-		comment_on_action(doc, state)
+		#comment_on_action(doc, state)
 	#------------------------------------------------------------------------------------------------------------------
 	#ONLY LOG THE DECISION IF THE MOST RECENT DECISION IS NULL OR IS NOT EQUAL TO THE_DECISION WE WANT TO LOG - SALIM@21/7/2020
 	#------------------------------------------------------------------------------------------------------------------
@@ -308,6 +308,8 @@ def create_quality_inspection(doc):
 					save_url(url, filedict.get("file_name"), docc.get("doctype"),\
 						docc.get("name"), filedict.get("folder"),True,None)
 def log_actions(doc, action_taken):
+	if doc.get("action_log") is None:
+		return
 	logged_in_user = frappe.session.user
 	child = frappe.new_doc("Approval Log")
 	action_user = get_fullname(logged_in_user)
@@ -705,11 +707,12 @@ def process_comment(doc,state):
 		mentions = extract_mentions(doc.content)
 		if not mentions:
 			#ALERT ALL USERS WHO HAVE EVER ACTIONED ON THIS DOCUMENT.
-			if  doc.get("comment_type") == "Comment":
+			if  doc.get("comment_type") == "Comment" and doc.get("owner")!="Administrator":
 				list_of_action_users = frappe.db.get_all("Comment", filters = {"reference_name": doc.reference_name, "comment_type": ["IN", ["Workflow","Created","Edit","Shared","Comment"]]}, fields=["comment_email"])
 				emails =[x.get("comment_email") for x in list_of_action_users]
 				unique_list = list(dict.fromkeys(emails))
-				unique_list.remove(frappe.session.user)
+				if frappe.session.user in unique_list:
+					unique_list.remove(frappe.session.user)
 				email_message = doc.content
 				docname = doc.get("reference_name")
 				subject = f"Comment Alert - {docname} from {sender_fullname}"
@@ -916,7 +919,21 @@ def return_budget_dict(dimension,dimension_name,account):
 		data_to_return['t_commit'] = single_row[20]
 		data_to_return['t_balance'] = single_row[21]
 	return data_to_return
-
+def validate_budget_exists(doc, state):
+	department = doc.get("items")[0].get("department")
+	fy = frappe.defaults.get_user_default("fiscal_year")
+	if not frappe.get_value("Budget",{"department": department,"fiscal_year":fy,"docstatus": 1},"name"):
+		frappe.throw(f"Sorry, there isn't a budget set up  for {department} Financial Year: {fy}\
+		 and as such this expenditure cannot be incurred")
+	expense_accounts =[x.get("expense_account") for x in doc.get("items")]
+	unique_expense_accounts = list(dict.fromkeys(expense_accounts))
+	for d in unique_expense_accounts:
+		budget = frappe.get_value("Budget",{"department": department,"fiscal_year":fy,"docstatus": 1},"name")
+		document = frappe.get_doc("Budget", budget)
+		accounts = [x.get("account") for x in document.get("accounts")]
+		if d not in accounts:
+			frappe.throw(f"""Sorry, there is no approval for {d} in {department}""")
+	return
 @frappe.whitelist()
 def return_budget_all_dict(account):
 	from frappe.desk.query_report import run
@@ -1002,8 +1019,8 @@ def get_votehead_balance(document_type, document_name):
 			doc.flags.ignore_permissions = True
 			doc.save()
 			doc.notify_update()
-		from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
-		vote_statement+= document_dashboard(document_type, document_name)
+		#from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
+		#vote_statement+= document_dashboard(document_type, document_name)
 		return vote_statement
 	elif document_type=="Payment Request":
 		#GET ASSOCIATED PURCHASE ORDER.
@@ -1054,8 +1071,8 @@ def get_votehead_balance(document_type, document_name):
 			doc.flags.ignore_permissions = True
 			doc.save()
 			doc.notify_update()
-		from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
-		vote_statement+= document_dashboard(document_type, document_name)
+		#from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
+		#vote_statement+= document_dashboard(document_type, document_name)
 		return vote_statement
 	elif document_type=="Material Request":
 		pass
@@ -1289,20 +1306,31 @@ def create_user(employee, user = None, email=None):
 def return_applicable_document_template(doctype):
 	return frappe.db.sql(f"""SELECT DISTINCT applicable_for\
 		 FROM `tabDocument Template Doctype` WHERE parent ='{doctype}'""", as_dict=True)
-def return_fields_to_capitalize():
-	return ["item_name","item_group_name","employee_name"]
+def return_fields_to_capitalize(doc):
+	meta  = meta = frappe.get_meta(doc.get("doctype"))
+	fieldnames =[x.get("fieldname") for x in meta.get("fields") \
+		 if x.get("fieldtype") in ["Data"] and x.get("fieldname") not in ["status","workflow_state"]]
+	return fieldnames
 def capitalize_essential_fields(doc , state):
-	fields_to_capitalize = return_fields_to_capitalize()
-	if fields_to_capitalize:
-		for d in fields_to_capitalize:
-			if frappe.get_meta(doc.get("doctype")).has_field(d):
-				doc.set(d, doc.get(d).upper())
+	#frappe.throw(doc.get("doctype"))
+	#return
+	allowed_to_capitalize = frappe.db.get_value("DocType",doc.get("doctype"),"module") in ["Buying",\
+		"Fleet Management System","Stock","Library Management","Fleet Management System"]
+	if not allowed_to_capitalize or "Setting" in doc.get("doctype"):
+		return
+	else:
+		fields_to_capitalize = return_fields_to_capitalize(doc)
+		if fields_to_capitalize:
+			for d in fields_to_capitalize:
+				if doc.get(d):
+					doc.set(d, str(doc.get(d)).upper())
+	return
 def enforce_variants(doc, state):
 	if not doc.get("variant_of"):
 		if not doc.get("has_variants") and doc.get("disabled")==False:
 			frappe.throw(_("Error. Kindly ensure that this item has at least one variant"))
 def enforce_unique_item_name(doc, state):
-	if frappe.db.count('Item', {'item_name': doc.get("item_name").upper(), "item_code":["!=", doc.get("name")]}) > 0:
+	if frappe.db.count('Item', {'item_name': doc.get("item_name").upper(), "disabled": False ,"item_code":["!=", doc.get("name")]}) > 0:
 		item_name = doc.get("item_name").upper()
 		if doc.get("disabled")==True:
 			pass
@@ -1317,7 +1345,6 @@ def append_attachments_to_file(doc, state):
 		attachment_urls = [doc.get(x) for x in fieldnames if doc.get(x)]
 		from frappe.utils.file_manager import save_url
 		for url in attachment_urls:
-			#if not file_exists(url, doc.get("name"))
 			filedict = frappe.db.get_value("File",{"file_url": url}\
 				,['file_name','folder'],as_dict=1)
 			save_url(url, filedict.get("file_name"), doc.get("doctype"),\

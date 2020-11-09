@@ -86,7 +86,10 @@ def get_final_data(dimension, dimension_items, filters, period_month_ranges, dat
 		if filters["period"] != "Yearly" :
 			row += totals
 		data.append(row)
-		
+
+	##Added Today
+	if(filters.get("show_votebook_trends")) and data:
+		pass	
 	return data
 
 
