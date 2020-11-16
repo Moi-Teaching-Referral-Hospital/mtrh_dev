@@ -47,5 +47,6 @@ def insert_user_permissions(doc,state):
 		assigned = warehouse.assigned
 		if assigned:
 			frappe.permissions.add_user_permission("Warehouse",docname,user)
+			#pass
 
 

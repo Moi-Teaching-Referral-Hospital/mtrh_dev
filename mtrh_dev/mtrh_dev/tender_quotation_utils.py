@@ -714,9 +714,10 @@ def update_respondents():
 		invited_bidders = len(d.get("invited_bidders"))
 		bids = len(d.get("bids"))
 		percent_response = (bids/invited_bidders)*100
-		frappe.db.sql(f"""UPDATE `tabBid Price Schedule` SET number_of_rfqs_issued ={invited_bidders}, \
+		frappe.db.sql(f"""UPDATE `tabProcurement Professional Opinion` SET number_of_rfqs_issued ={invited_bidders}, \
 			number_of_rfqs_received ={bids} WHERE reference_number='{reference}'""")
-		frappe.db.sql(f"""UPDATE `tabTender Quotation Opening Bid` SET bidders_invited ={invited_bidders}, \
+		
+		frappe.db.sql(f"""UPDATE `tabTender Quotation Opening` SET bidders_invited ={invited_bidders}, \
 			respondents ={bids}, response ={percent_response} WHERE name='{reference}'""")
 def alert_opening_members():
 	pending  = frappe.db.sql("SELECT name FROM `tabTender Quotation Opening`\
@@ -747,13 +748,26 @@ def document_dashboard(doctype, docname):
 		to_return+= "<table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 
-		to_return+= f"<tr><td>Material Requests:</td><td>{material_rq_links}</td></tr>"
+		to_return+= f"<tr><td>User Purchase Requests:</td><td>{material_rq_links}</td></tr>"
 
 		to_return+= f"<tr><td>Authority to Procure: </td><td>{authority_to_procure}</td></tr>"
 		to_return+= f"<tr><td>Opening Report</td><td>{opening_report}</td></tr>"
 		to_return+= "</table>"
 	elif doctype == "Purchase Order":
-		to_return = ""
+		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<th>Document</th><th>Link</th>"
+
+		#MATERIAL REQUEST LINK
+		material_requests = []
+		#material_requests = [x.get("material_request") for x in document.get("items") if x.get("material_request") and x.get("material_request") not in material_requests]
+		[material_requests.append(x.get("material_request")) for x in document.get("items") if x.get("material_request") and x.get("material_request") not in material_requests]
+		if len(material_requests) > 0:
+			mr_links  =[get_link_to_form_new_tab("Material Request", x) for x in material_requests]
+			to_return+= f"<tr><td>User Purchase Requests:</td><td>{mr_links}</td></tr>"
+
+		else:
+			to_return+= f"<tr><td>User Purchase Requests:</td><td>Done outside this system. Check Attachements</td></tr>"
+		
 		supplier_quotations = [x.get("supplier_quotation") for x in document.get("items") if x.get("supplier_quotation")]
 		#frappe.throw(supplier_quotations)
 		
@@ -765,8 +779,6 @@ def document_dashboard(doctype, docname):
 			rfq_q = '('+','.join("'{0}'".format(i) for i in rfqs_arr)+')'
 			professional_opinion_q = frappe.db.sql(f"""SELECT name FROM `tabProcurement Professional Opinion`\
 				 WHERE request_for_quotation IN {rfq_q} """,as_dict =True)
-			to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
-			to_return += "<th>Document</th><th>Link</th>"
 
 			rfq_links  =[get_link_to_form_new_tab("Request for Quotation", x.get("request_for_quotation")) for x in quotations_q]
 			professional_opinion_links = [get_link_to_form_new_tab("Procurement Professional Opinion", x.get("name")) for x in professional_opinion_q]
@@ -783,8 +795,8 @@ def document_dashboard(doctype, docname):
 				attachments = get_attachment_urls(externally_generated_ids)
 				to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
 				to_return += "<th>Document</th><th>Link</th>"
-				to_return+= f"<tr><td>Scanned (Externally generated order) Document Attachments:	</td><td>{attachments}</td></tr>"
-				to_return+= "</table>"
+				to_return+= f"<tr><td>Scanned (Externally generated order) Document Attachments: </td><td>{attachments}</td></tr>"
+			to_return+= "</table>"
 	elif doctype == "Request for Quotation":
 		to_return ="<h3>Attachments and Linked Documents</h3>"
 		rfq = document.get("name")
@@ -927,7 +939,38 @@ def document_dashboard(doctype, docname):
 			
 			to_return+= "</table>"
 	elif doctype == "Purchase Receipt":
-		to_return ="<h3>Attachments and Linked Documents</h3>"
+		pass
+	elif doctype == "Quality Inspection":
+		all_linked_documents= []
+		all_linked_documents.extend([document.get("name")])
+		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<th>Document</th><th>Link</th>"
+
+		#SHOW ASSOCIATED PURCHASE RECEIPTS/GRNs
+		pr_link  =[get_link_to_form_new_tab("Purchase Receipt", document.get("reference_name"))]
+		all_linked_documents.extend([document.get("reference_name")])
+
+		#LINKED PURCHASE ORDERS
+		purchase_orders_list = []
+		pr_doc = frappe.get_doc("Purchase Receipt", document.get("reference_name"))
+		[purchase_orders_list.append(x.get("purchase_order")) for x in pr_doc.get("items") if x.get("item_code") == document.get("item_code")]
+		linked_purchase_orders = [get_link_to_form_new_tab("Purchase Order", x) for x in purchase_orders_list]
+		all_linked_documents.extend(linked_purchase_orders)
+		linked_material_requests=[]
+		
+		#LINKED MATERIAL REQUESTS
+		#if purchase_orders_list:
+		#	[linked_material_requests.append(x.get("material_request")) for x in frappe.get_doc("Purchase Order", purchase_orders_list[0]).get("items") if x.get("item_code") == document.get("item_code")]
+		#	all_linked_documents.extend(purchase_orders_list)
+			
+		#SHOW ATTACHMENTS
+		#frappe.msgprint(f"These are the linked documents: {all_linked_documents}")
+		d = get_attachment_urls(all_linked_documents)
+
+		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Goods Received Notes (GRN): </td><td>{pr_link}</td></tr>"
+		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Purchase Orders: </td><td>{linked_purchase_orders}</td></tr>"
+		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Uploaded Documents (External): </td><td>{d}</td></tr>"
+		to_return+= "</table>"
 	return to_return
 def sq_item_in_po(item, sq):
 	'''return frappe.db.sql(f"SELECT name FROM `tabPurchase Order Item` WHERE item_code='{item}'\

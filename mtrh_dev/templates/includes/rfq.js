@@ -9,6 +9,19 @@ $(document).ready(function() {
 	doc.currency = "{{ doc.currency }}"
 	doc.number_format = "{{ doc.number_format }}"
 	doc.buying_price_list = "{{ doc.buying_price_list }}"
+
+	doc.base_grand_total = 0.0
+	doc.grand_total = 0.0
+	doc.rounded_total = 0.0
+	doc.in_words = ""
+	doc.total = 0.0
+	doc.base_total = 0.0
+	doc.net_total = 0.0
+
+	$.each(doc.items, function(idx, data){
+		data.rate = 0.0;
+		data.amount = 0.0;
+	})
 });
 
 rfq = Class.extend({
@@ -96,6 +109,7 @@ rfq = Class.extend({
 
 	submit_rfq: function(){
 		$('.btn-sm').click(function(){
+			//JSON.stringify(doc)
 			var isconfirmed = confirm("Any previously submitted quotation for the associated RFQ [" + doc.name + "] will be overwritten and this will be regarded as the updated quotation. Are you sure?");
 			if(isconfirmed){
 				frappe.freeze();
@@ -110,9 +124,15 @@ rfq = Class.extend({
 						frappe.unfreeze();
 						if(r.message){
 							$('.btn-sm').hide()
-							window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
-							window.location.replace("/supplier-quotations/" + encodeURIComponent(r.message));
-							frappe.show_alert("Your submission of Quotation " + r.message + " was successful. You will be alerted once it is opened and evaluated.", 10)
+							setTimeout(function(){
+								window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
+								window.location.replace("/supplier-quotations/" + encodeURIComponent(r.message));
+							}, 5000)
+							frappe.msgprint({
+								title: __('Successfully Submitted'),
+								message:__("Your submission of Quotation: <b>" + r.message + "</b> was successful. You will be alerted once it is opened and evaluated"),
+								indicator:'green'
+							});
 						}
 					}
 				})

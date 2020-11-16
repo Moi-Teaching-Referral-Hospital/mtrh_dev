@@ -1,0 +1,36 @@
+{
+ "actions": [],
+ "creation": "2020-11-10 15:38:48.405458",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "invoice_number",
+  "amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "invoice_number",
+   "fieldtype": "Link",
+   "label": "Invoice Number",
+   "options": "Purchase Invoice"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2020-11-10 15:38:48.405458",
+ "modified_by": "Administrator",
+ "module": "MTRH Dev",
+ "name": "Payment Request Invoice",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

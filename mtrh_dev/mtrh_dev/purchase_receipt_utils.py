@@ -129,6 +129,13 @@ def delivery_completed_status(doc , state):
 					)
 	process_qi(unalerted_grns)
 	return unalerted_grns
+def update_posting_date_and_time(doc):
+	#CONTEXT PURCHASE RECEIPT
+	doc.flags.ignore_permissions = True
+	doc.set("posting_date",date.today())
+	doc.set("posting_time",datetime.now().strftime("%H:%M:%S"))
+	doc.save()
+	return doc
 def process_qi(unalerted_grns):
 	#unalerted_grns = [doc.get("reference_name")]
 	#ALERT DOC OWNER
@@ -136,6 +143,7 @@ def process_qi(unalerted_grns):
 		return#frappe.throw("Sorry, you must inspect all Delivered items")
 	for grn in unalerted_grns:
 		docname = grn.name
+		grn = update_posting_date_and_time(grn)
 		supplier_ref = grn.get("supplier_delivery")
 		frappe.response["grn"]=docname
 		#purchase_receipt_document = frappe.db.get_doc("Purchase Receipt",docname)
@@ -148,7 +156,7 @@ def process_qi(unalerted_grns):
 		#supplier = purchase_receipt_dict.supplier
 		message ="Dear {0}\
 			 This is to let you know that goods/services as per your delivery note {1}\
-				  have been successfully inspected. Please invoice as per attached copy of GRN/Certificate document".format(supplier, supplier_ref)
+				  have been successfully inspected. Please invoice as per attached copy of GRN/Certificate document. If you have already submitted an invoice, no further action is needed at this point.".format(supplier, supplier_ref)
 		#GET ALL INSPECTION DOCUMENTS
 		inspection_documents  = frappe.db.get_all('Quality Inspection',
 						filters={

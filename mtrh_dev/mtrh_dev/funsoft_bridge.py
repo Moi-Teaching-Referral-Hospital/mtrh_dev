@@ -33,7 +33,6 @@ def get_connection():
 @frappe.whitelist()
 def get_patient_dict(key):
 	key = key.strip()
-	print("....")
 	conn = get_connection()
 	cur = conn.cursor()
 	cur.execute("""SELECT * from public.hp_patient_register WHERE patient_no = %s OR 

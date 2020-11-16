@@ -9,24 +9,27 @@ function page_changed(event) {
 		var route = frappe.get_route();
 
         if (route[0] == "Form") {
-			console.log("1. " + route[1] + ", 2: " + route[2] + ", 3: " + cur_frm.doc.name + ", 4: " + cur_frm.doc.doctype)
-			frappe.call({
-				"method":"mtrh_dev.mtrh_dev.tender_quotation_utils.document_dashboard",
-					args: {
-						"docname": route[2],
-						"doctype": route[1]
-					},
-				"callback":function(e){
-					console.log("DASHBOARD: " + e.message);
-					//frm.dashboard.refresh();
-					//setTimeout(() => {
-						//$(".form-dashboard-section.custom").remove();
-						//$("#divdash").remove();
-					cur_frm.dashboard.add_section("<div id='divdash'>" + e.message + "</div>");
-					cur_frm.dashboard.show();
-					//}, 2000);
-				}
-			});
+			if (!cur_frm.is_new() && (route[1] !== undefined) && (route[2] !== undefined)) {
+				console.log("1. " + route[1] + ", 2: " + route[2] + ", 3: " + cur_frm.doc.name + ", 4: " + cur_frm.doc.doctype)
+				
+				frappe.call({
+					"method":"mtrh_dev.mtrh_dev.document_dashboard.document_dashboard",
+						args: {
+							"docname": cur_frm.doc.name,
+							"doctype": cur_frm.doc.doctype
+						},
+					"callback":function(e){
+						console.log("DASHBOARD: " + e.message);
+						//frm.dashboard.refresh();
+						//setTimeout(() => {
+							//$(".form-dashboard-section.custom").remove();
+							//$("#divdash").remove();
+						cur_frm.dashboard.add_section("<div id='divdash'>" + e.message + "</div>");
+						cur_frm.dashboard.show();
+						//}, 2000);
+					}
+				});
+			}
             frappe.ui.form.on(route[1], {
 				onload_post_render: function(frm){
 					

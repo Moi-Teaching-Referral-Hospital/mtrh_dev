@@ -213,7 +213,7 @@ def externally_generated_po(doc, state):
 			sq_doc.run_method("set_missing_values")
 			sq_doc.save()
 			
-			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}', externally_generated_order='{1}' WHERE parent ='{2}'""".format(doc.get("department"),sq_doc.get("name"), sq_doc.get("name")))	
+			frappe.db.sql("""UPDATE `tabPurchase Order Item` SET department = '{0}', externally_generated_order='{1}' WHERE parent ='{2}'""".format(doc.get("department"),doc.get("name"), sq_doc.get("name")))	
 			#frappe.db.set_value(doc.get("doctype"), doc.get("name"),"linked_po",sq_doc.get("name"))
 			if doc.get("is_approved"):
 				sq_doc.submit()

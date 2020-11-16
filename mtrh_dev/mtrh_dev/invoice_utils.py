@@ -27,14 +27,16 @@ from frappe.model.workflow import get_workflow_name
 class InvoiceUtils(Document):
 	pass
 def raise_payment_request(doc, state):
-	dn = doc.get("name")
-	if frappe.db.count('Payment Request', {'reference_name': dn}) > 0:
-		return
-	else:
+	purchase_order = doc.get("items")[0].purchase_order
+	if not frappe.db.exists({"doctype":"Payment Request","reference_name":purchase_order,"checked":False}):
+		#dn = doc.get("name")
+		'''if frappe.db.count('Payment Request', {'reference_name': dn}) > 0:
+			return
+		else:'''
 		try:
 			args ={}
-			args["dt"] = "Purchase Invoice"
-			args["dn"] = doc.get("name")
+			args["dt"] = "Purchase Order"
+			args["dn"] = purchase_order
 			args["loyalty_points"] = ""
 			args["party_type"] = "Supplier"
 			args["party"]=doc.get("supplier")
@@ -42,15 +44,73 @@ def raise_payment_request(doc, state):
 			args["transaction_date"]=date.today
 			args["return_doc"]=True
 			args["submit_doc"]=False
-			args["order_type"]="Purchase Invoice"
+			args["order_type"]="Purchase Order"
 			if args:
 				from erpnext.accounts.doctype.payment_request.payment_request import make_payment_request
 				payment_request_doc = make_payment_request(**args)
+				#########################################################
+				
+				#SET PURCHASE ORDER AMOUNT
+				po = frappe.get_doc(payment_request_doc.get("reference_doctype"), payment_request_doc.get("reference_name"))
+				total_po_amount = po.get("total") or 0.0 
+				payment_request_doc.set("order_amount", total_po_amount)
+				#APPEND INVOICES/CREDIT NOTES IN TABLE
+				payment_request_doc = append_invoice_to_request(payment_request_doc, doc)
+				
+				########################################################
+				#INSERT DOCUMENT
 				payment_request_doc.insert(ignore_permissions=True)
+				doc.db_set("sent_to_pv", True)
 				frappe.msgprint("Payment request {0} has been created successfully. ".format(payment_request_doc.get("name")))
 		except Exception as e:
 			frappe.msgprint("Operation could not be completed because of {0}"\
 				.format(e))
+	else:
+		docname = frappe.db.get_value("Payment Request",{"reference_name":purchase_order,"checked":False},"name")
+		payment_request_doc = frappe.get_doc("Payment Request", docname)
+		payment_request_doc = append_invoice_to_request(payment_request_doc, doc)
+		payment_request_doc.save(ignore_permissions=True)
+	return
+def append_invoice_to_request(payment_request, purchase_invoice):
+	invoice = purchase_invoice.get("name")
+	amount = purchase_invoice.get("total")
+	if not purchase_invoice.get("is_return"):
+		invoices_already_entered =[x.get("invoice_number") for x in payment_request.get("invoices")]
+		if invoice not in invoices_already_entered:
+			payment_request.append('invoices',{
+				"invoice_number": invoice,
+				"amount": amount
+			})
+	else:
+		invoices_already_entered =[x.get("invoice_number") for x in payment_request.get("credit_notes")]
+		if invoice not in invoices_already_entered:
+			payment_request.append('credit_notes',{
+				"invoice_number": invoice,
+				"amount": amount
+			})
+	return payment_request
+def validate_invoices_in_po_v2(doc,state):
+	workflow = get_workflow_name(doc.get('doctype'))
+	if workflow:
+		new_workflow_state = get_doc_workflow_state(doc)
+		old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
+		if old_workflow_state == new_workflow_state:
+			return
+		elif new_workflow_state in ["Pending Payment Voucher", "Credit Note"]:
+			doc.set("to_be_sent_to_pv", True)
+			frappe.msgprint("Document checking successful")
+	return
+def set_purchase_request_as_checked(doc):
+	workflow = get_workflow_name(doc.get('doctype'))
+	if workflow:
+		new_workflow_state = get_doc_workflow_state(doc)
+		old_workflow_state = frappe.db.get_value(doc.get('doctype'), doc.get('name'), 'workflow_state')
+		doc.set("checked", False)
+		if old_workflow_state == new_workflow_state:
+			return
+		elif new_workflow_state not in ["Voteholder Checking"]:
+			doc.set("checked", True)
+			frappe.msgprint("Document checking successful")
 	return
 def validate_invoices_in_po(doc , state):
 	workflow = get_workflow_name(doc.get('doctype'))
@@ -146,4 +206,40 @@ def make_payment_entry_on_pv_submit(doc,state):
 	payment_entry_doc.flags.ignore_permissions = True
 	payment_entry_doc.insert()
 	return 
-	
+def process_staged_invoices():
+	invoices_dict = frappe.db.sql("SELECT name FROM `tabPurchase Invoice`\
+			 WHERE to_be_sent_to_pv = 1 and sent_to_pv=0",as_dict=True)
+	invoices =[x.get("name") for x in invoices_dict]
+	print(invoices)
+	if invoices:
+		documents = [frappe.get_doc("Purchase Invoice",x) for x in invoices]
+		documents_to_be_paid = [x for x in documents if x.get("is_return")==False]
+		list(map(lambda x: raise_payment_request(x, "Submitted"),documents_to_be_paid))
+def clean_up_payment_request(doc, state):
+	#SET PURCHASE ORDER AMOUNT
+	payment_request_doc = doc
+	po = frappe.get_doc(payment_request_doc.get("reference_doctype"), payment_request_doc.get("reference_name"))
+	total_po_amount = po.get("total") or 0.0 
+	payment_request_doc.set("order_amount", total_po_amount)
+	#GET AND SET INVOICES AMOUNT
+	total_pv_amount = 0.0
+	for d in payment_request_doc.get("invoices"):
+		total_pv_amount += d.get("amount")
+	payment_request_doc.set("grand_total", flt(total_pv_amount))
+	#GET AND SET CREDIT NOTES AMOUNT
+	total_cr_amount = 0.0
+	if payment_request_doc.get("credit_notes"):
+		for d in payment_request_doc.get("credit_notes"):
+			total_cr_amount += d.get("amount")
+	if total_cr_amount < 0:
+		total_cr_amount*=-1
+	total_processed_invoices_plus_credit_notes = total_pv_amount + total_cr_amount
+	percent = total_processed_invoices_plus_credit_notes*100 / total_po_amount
+	payment_request_doc.set("forwarded_invoices",percent) 
+	set_purchase_request_as_checked(doc)
+def resave_prqs():
+	d = frappe.db.sql("SELECT name FROM `tabPayment Request`", as_dict=True)
+	documents = [frappe.get_doc("Payment Request", x.get("name")) for x in d]
+	if documents:
+		list(map(lambda x: x.save(),documents))
+#sudo -u erp-mtrh /usr/local/bin/bench --site portal.mtrh.go.ke execute mtrh_dev.mtrh_dev.invoice_utils.resave_prqs

@@ -97,7 +97,6 @@ doc_events = {
 		"before_save": [
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
 			"mtrh_dev.mtrh_dev.utilities.process_workflow_log",
-			"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields",
 			"mtrh_dev.mtrh_dev.utilities.append_attachments_to_file"
 		],
 		"before_submit": [
@@ -108,6 +107,9 @@ doc_events = {
 			"mtrh_dev.mtrh_dev.utilities.log_time_to_action",
 			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 		]
+	},
+	("Item", "Warehouse", "Procurement Plan", "Supplier", "Item Group", "Paper Document"):{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields"
 	},
 	("Purchase Order", "Material Request"):{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_budget_exists"
@@ -165,14 +167,17 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.alert_user_on_workflowaction"
 	},
 	"Employee":{
-		#"before_save": "mtrh_dev.mtrh_dev.utilities.assign_department_permissions"
+		"before_save": "mtrh_dev.mtrh_dev.utilities.assign_department_permissions"
 	},
 	"Comment":{
 		"before_save": "mtrh_dev.mtrh_dev.utilities.process_comment"
 	},
 	"Supplier Quotation":{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.cleanup_sq",
 		#"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
-		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"
+		"before_submit": ["mtrh_dev.mtrh_dev.utilities.cleanup_sq",
+				"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"],
+		"on_submit":"mtrh_dev.mtrh_dev.utilities.cleanup_sq"
 	},
 	"Tender Quotation Opening":{
 		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations"
@@ -186,10 +191,12 @@ doc_events = {
 	},
 	"Purchase Invoice":{
 		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", 
-		"mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po"]
+		"mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po_v2"]
 	},
 	"Payment Request":{
-		"before_save": "mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state",
+		"before_save": ["mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request",
+				"mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state"],
+		"after_insert":"mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request",
 		"before_submit": "mtrh_dev.mtrh_dev.invoice_utils.finalize_invoice_on_pv_submit",
 		"on_submit": "mtrh_dev.mtrh_dev.invoice_utils.make_payment_entry_on_pv_submit"
 	},

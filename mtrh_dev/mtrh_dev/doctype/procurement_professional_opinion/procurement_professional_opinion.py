@@ -24,4 +24,5 @@ class ProcurementProfessionalOpinion(Document):
 		return
 	def validate_workflow_state(self):
 		if not self.workflow_state == "Draft":
+			#pass
 			frappe.throw(_("Sorry, operation only permitted for Draft workflow state"))

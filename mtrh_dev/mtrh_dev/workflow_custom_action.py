@@ -199,6 +199,7 @@ def raise_order(supplier, supplier_items, item_category, material_request_number
 				"transaction_date" : date.today(),
 				"item_category":item_category,
 				"schedule_date" : add_days(nowdate(), 30),
+				"status": "Draft"
 			})
 		for item_dict in supplier_items:
 			item = item_dict.get("item_code")
