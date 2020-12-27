@@ -105,6 +105,10 @@ def get_item_default_expense_account(item_code):
 	frappe.response["company"]= frappe.db.get_single_value("Global Defaults", "default_company")
 	return expense_account
 def stock_reconciliation_set_default_price(doc,state):
+	#CHECK THAT THE DEPARTMENT DIMENSION HAS BEEN SET. IT IS NEEDED IN THE BALANCE SHEET ACCOUNT ENTRIES.
+	if not doc.get("department"):
+		frappe.throw("Please set the department where these items are intended to be used. This is mandatory when tracking accounts.")
+
 	count =0
 	for item in doc.items:
 		print("Working")
@@ -189,15 +193,17 @@ def document_expiry_extension(doc,state):
 	frappe.msgprint("Successfully updated {0} date for {1} - {2} from {3} to {4}".
 					format(datefields_to_update.get(doctype),doctype,docname,doc.get("from_date"),doc.get("to_this_date")))
 def externally_generated_po(doc, state):
-	
 	if doc.get("items"):
 		itemstable =   doc.get("items")
 		actual_name = doc.get("supplier")
+		naming_series = "PUR-EX-ORD-.YYYY.-"
+		if doc.is_proforma_invoice == True:
+			naming_series = "PUR-PRF-ORD-.YYYY.-"
 		try:
 			sq_doc = frappe.get_doc({
 				"doctype":"Purchase Order",
-				"naming_series": "PUR-EX-ORD-.YYYY.-",
-				"supplier_name": actual_name,
+				"naming_series": naming_series,
+				"supplier_name": actual_name, 
 				"conversion_rate":1,
 				"currency":frappe.defaults.get_user_default("currency"),
 				"supplier": actual_name,
@@ -239,19 +245,35 @@ def update_mr_reference_number():
 			mr = d.get("items")[0].get("material_request")
 			if mr:
 				d.db_set("ORIGINAL_USER_REQUEST", mr)	
+@frappe.whitelist()
+def get_child_groups(group_name):
+	child_groups = frappe.db.sql(f"""SELECT name FROM `tabItem Group`\
+		 WHERE name ='{group_name}' OR parent_item_group ='{group_name}'""", as_dict=True)
+	return [x.get("name") for x in child_groups]
 def validate_material_request(doc, state):
 	from mtrh_dev.mtrh_dev.utilities import get_link_to_form_new_tab
 	mr_item_group = doc.item_category
+	all_available_groups = get_child_groups(mr_item_group)
+	#all_available_groups = the_child_groups.append(mr_item_group)
 	items = doc.get("items")
-	items_not_for_group =[x.get("item_code") for x in items \
+	'''items_not_for_group =[x.get("item_code") for x in items \
 		if not frappe.db.get_value("Item", {"item_group": mr_item_group, \
-			"item_code":x.get("item_code")},"name")]
+			"item_code":x.get("item_code")},"name")]'''
+	items_not_for_group =[]
+	for x in items:
+		the_item_group = frappe.db.get_value("Item", { "item_code":x.item_code},"item_group")
+		if the_item_group not in all_available_groups:
+			items_not_for_group.append(x.item_code) 
+	'''[x.get("item_code") for x in items \
+		if not frappe.db.get_value("Item", {"item_group": ["IN",all_available_groups], \
+			"item_code":x.get("item_code")},"name")]'''
 	itemlist = "<p></p>"
 	for d in items_not_for_group:
 		item_dict = frappe.db.get_value("Item", d, ["item_name","item_group"], as_dict =True)
 		item_group = item_dict.get("item_group")
 		link_to_item = get_link_to_form_new_tab("Item",d, item_dict.get("item_name"))
 		itemlist += f"<li>{link_to_item} : {item_group}</li>"
-	if items_not_for_group and len(items_not_for_group)>0:
-		frappe.throw(f"""These items have been wrongly placed under {mr_item_group}: {itemlist}""","Error items")
+	if mr_item_group and items_not_for_group and len(items_not_for_group)>0:
+		#pass
+		frappe.throw(f"""These items have been wrongly placed under {mr_item_group}: {itemlist}""")
 	return

@@ -18,7 +18,62 @@ import copy
 STANDARD_USERS = ("Guest", "Administrator")
 
 class TenderQuotationAward(Document):
-	pass
+	def before_save(self):
+		if "Tender" not in self.procurement_method and not self.is_internal:
+			hint =" <p><b>Hint: </b>RFQs and Direct procurement awards can either be entered as externally generated order(with attachments) or the process restarted from Material Request</p>"
+			frappe.throw(f"Non-Tendered items cannot be submitted. Please check your mode of procurement. {hint}")
+	def before_cancel(self):
+		if "Tender" in self.procurement_method:
+			self.remove_linked_award()
+	def remove_linked_award(self):
+		item_code = self.item_code
+		frappe.msgprint(f"De-linking Award from {item_code}")
+		if "Tender" in self.procurement_method:
+			item_code = self.item_code
+			item_doc = frappe.get_doc("Item", item_code)
+			pl = self.reference_number
+			frappe.db.sql(f"""UPDATE `tabItem Default` SET default_supplier ='', default_price_list=''\
+				WHERE parent ='{item_code}' and default_price_list ='{pl}'""")
+			item_doc.add_comment("Shared", text=f"Award {pl} delinked from this item.")
+			self.add_comment("Shared", text=f"Award {pl} delinked from this item.")
+			frappe.msgprint(f"Award {pl} de-linked from item {item_code} successfully.")
+	def re_evaluate_document(self):
+		update_price_list(self, "Submitted")
+	def mark_award_as_expired(self):
+		self.db_set("workflow_state","Expired")
+def expired_tenders_cron():
+	d = frappe.db.sql("SELECT name FROM `tabTender Quotation Award` WHERE reference_number IN\
+		 (SELECT name FROM `tabTender Number` WHERE expiry_date = current_date) ", as_dict=True)
+	if isinstance(d, list) and d:
+		refs = [x.get("name") for x in d]
+		awards = [frappe.get_doc("Tender Quotation Award", x) for x in refs]
+		for x in awards:
+			x.mark_award_as_expired()
+			x.remove_linked_award()
+@frappe.whitelist()
+def switch_bidder(selected_bidder,reference_name):
+	doc = frappe.get_doc("Tender Quotation Award", reference_name)
+	previously_awarded =""
+	for x in doc.get("suppliers"):
+		if x.awarded_bidder:
+			previously_awarded = x.supplier_name
+	user = frappe.session.user
+	if doc.docstatus != 1:
+		frappe.throw(f"Operation allowed for approved documents only")
+		return
+	if "Quotations Manager" not in frappe.get_roles(frappe.session.user):
+		frappe.throw("Sorry, only Buyer role allowed to amend suppliers")
+		return
+	frappe.db.sql(f"""UPDATE `tabTender Quotation Award Suppliers`\
+		 SET awarded_bidder=0 WHERE parent ='{reference_name}' AND name !=''""")
+	frappe.db.sql(f"""UPDATE `tabTender Quotation Award Suppliers`\
+		 SET awarded_bidder=1 WHERE supplier_name='{selected_bidder}'\
+			  AND parent ='{reference_name}' AND name !=''""")
+	doc.add_comment("Shared", text=f"{user} ammended awarded supplier\
+		 from {previously_awarded} to {selected_bidder}")
+	doc.notify_update()
+	return
+
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # THIS CODE MANUALLY UPDATES THE PRICELIST AND DEFAULT SUPPLIER OF AN ITEM ONLY WHEN AUTHORITY IS SOUGHT
 @frappe.whitelist()
@@ -26,7 +81,6 @@ def tender_quotation_award_shorthand(docname):
 	doc = frappe.get_doc("Tender Quotation Award", docname)
 	update_price_list(doc,"Submitted")
 def update_price_list(doc, state):
-	
 	try:
 		item_code = doc.get("item_code")
 		#frappe.msgprint(f"Starting process...{item_code}")
@@ -73,18 +127,20 @@ def update_price_list(doc, state):
 			frappe.response["affected_item"] = item_name
 			frappe.response["affected_bidder"] = bidder_payload
 		else:
+
 			if not doc.get("department"):
 				frappe.throw("Sorry, user department is mandatory for creation of Purchase Order")
 			else:
 				if doc.get("is_internal"):
 					return
 				else:
-					doc = frappe.new_doc('Purchase Order')
+					frappe.throw("Non-Tendered items cannot be submitted. Please check your mode of procurement")
+					po_doc = frappe.new_doc('Purchase Order')
 					actual_name = suppname
 					purchase_order_items = get_po_item_dict(actual_name,item_code,\
 						reference, price_per_unit, doc)
 					item_category = frappe.db.get_value("Item",item_code,'item_group')
-					doc.update(
+					po_doc.update(
 							{
 								"supplier_name":actual_name,
 								"conversion_rate":1,
@@ -99,13 +155,13 @@ def update_price_list(doc, state):
 								"items":purchase_order_items
 							}
 						)
-					doc.insert()
-					po = doc.get("name")
+					po_doc.insert()
+					po = po_doc.get("name")
 					frappe.msgprint(f"Purchase Order {po}\
 						has been drafted successfully and posted in this system for further action.")
 	except Exception as e:
 		frappe.response["Exception"] = e
-		frappe.throw("Error in Transaction")	
+		frappe.throw(f"{e}")	
 def get_po_item_dict(supplier, item_code, reference, quoted_price, award_doc, quantity =None):
 	from mtrh_dev.mtrh_dev.stock_utils import get_item_default_expense_account
 	purchase_order_items =[]
@@ -117,7 +173,7 @@ def get_po_item_dict(supplier, item_code, reference, quoted_price, award_doc, qu
 				parent ='{reference}' and item_code = '{item_code}' ) """, as_dict=True) 
 		department = departmentqry[0].get("department")
 	doc = frappe.get_doc("Item", item_code)
-	item_group = doc.get("item_group")
+	item_group = doc.get("item_group") 
 	default_warehouse = frappe.db.get_value("Item Default",\
 		{"parent":item_code,"parenttype":"Item"},'default_warehouse') \
 			or \

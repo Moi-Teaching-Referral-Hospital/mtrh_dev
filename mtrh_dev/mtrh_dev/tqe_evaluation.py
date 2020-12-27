@@ -177,7 +177,7 @@ def make_purchase_invoice_from_portal(purchase_order_name,doc):
 	#==========================end of getting total invoiced items
 	#frappe.response['totalqty'] = lpoamount
 	# #=========================getting submitted purchase receipt items	
-	approvedreceiptsnotinvoiced = frappe.db.get_list("Purchase Receipt Item",
+	approvedreceiptsnotinvoiced =  frappe.db.get_list("Purchase Receipt Item",
 			filters={
 				"purchase_order": purchase_order_name,
 				"docstatus": ["=", 1],
@@ -453,9 +453,13 @@ def stage_supplier_email(doc, state):
 			sq_doc.insert()
 def dispatch_staged_email(doc , state):
 	if '-EX-'  in doc.get("reference_name"):
-		doc.db_set("status","Not to be sent")
+		actual_doc = frappe.get_doc("Purchase Order",doc.get("reference_name"))
+		doc_actual_ref = actual_doc.get("items")[0].externally_generated_order
+		if frappe.get_value("Externally Generated Order", doc_actual_ref,'is_approved'):
+			doc.db_set("status","Not to be sent")
+			return
 		#doc.save()
-	if doc.get("status") not in ["Sent"] and '-EX-' not in doc.get("reference_name"):
+	if doc.get("status") not in ["Sent"]:
 		dispatch_transaction(doc)
 @frappe.whitelist()
 def dispatch_transaction(document=None, docname =None):

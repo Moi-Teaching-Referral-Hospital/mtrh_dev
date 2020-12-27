@@ -92,7 +92,7 @@ def send_sms_alert(incoming_payload):
 		# generating random strings  
 		value = ''.join(random.choices(string.digits +
 									string.digits, k = N)) 
-		frappe.response["radint"] =value
+		#frappe.response["radint"] =value
 		#=====================================================================================================================
 		#PREPARE AN OUTGOING PAYLOAD TO THE RECIPIENT
 		#=====================================================================================================================

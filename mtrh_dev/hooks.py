@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from frappe import _
+#from frappe import _
 from . import __version__ as app_version
 
 app_name = "mtrh_dev"
@@ -108,11 +108,14 @@ doc_events = {
 			"mtrh_dev.mtrh_dev.utilities.process_workflow_log"
 		]
 	},
-	("Item", "Warehouse", "Procurement Plan", "Supplier", "Item Group", "Paper Document"):{
+	("Item", "Warehouse", "Procurement Plan", "Supplier", "Item Group", "Paper Document","Branch", "Material Request"):{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.capitalize_essential_fields"
 	},
+	"Procurement Plan":{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_procurement_plan_exists"
+	},
 	("Purchase Order", "Material Request"):{
-		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_budget_exists"
+		"before_save":["mtrh_dev.mtrh_dev.utilities.validate_budget_exists", "mtrh_dev.mtrh_dev.utilities.cleanup_item_idx"]
 	},
 	"Material Request":{
 		"before_save":["mtrh_dev.mtrh_dev.stock_utils.validate_material_request"],		
@@ -122,13 +125,14 @@ doc_events = {
 		"before_submit": ["mtrh_dev.mtrh_dev.tqe_on_submit_operations.apply_tqe_operation"]
 	},
 	"Purchase Order":{
-		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status",
-		 "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],
+		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status","mtrh_dev.mtrh_dev.utilities.reassign_ownership"],
 		 "on_submit": "mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"	
 	},
+	"Item Group":{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.cascade_item_default_hook"
+	},
 	"Request for Quotation":{
-		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status",
-		"mtrh_dev.mtrh_dev.utilities.clean_up_rfq", "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],		
+		"before_save":["mtrh_dev.mtrh_dev.workflow_custom_action.update_material_request_item_status","mtrh_dev.mtrh_dev.utilities.clean_up_rfq", "mtrh_dev.mtrh_dev.utilities.reassign_ownership"],		
 		"on_submit":"mtrh_dev.mtrh_dev.tqe_evaluation.stage_supplier_email"			
 	},
 	"Tender Quotation Award":{
@@ -151,9 +155,7 @@ doc_events = {
 		#"on_submit":"mtrh_dev.mtrh_dev.doctype.store_allocation.store_allocation.insert_user_permissions"
 	},
 	"Item":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.enforce_unique_item_name",
-		"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations",
-		"mtrh_dev.mtrh_dev.utilities.enforce_variants"],
+		"before_save":["mtrh_dev.mtrh_dev.utilities.enforce_unique_item_name","mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations","mtrh_dev.mtrh_dev.utilities.enforce_variants"],
 		"on_submit":"mtrh_dev.mtrh_dev.stock_utils.item_workflow_operations"
 	},
 	"Document Expiry Extension":{
@@ -175,12 +177,12 @@ doc_events = {
 	"Supplier Quotation":{
 		"before_save":"mtrh_dev.mtrh_dev.utilities.cleanup_sq",
 		#"before_save": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_save_operations",
-		"before_submit": ["mtrh_dev.mtrh_dev.utilities.cleanup_sq",
-				"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"],
+		"before_submit": ["mtrh_dev.mtrh_dev.utilities.cleanup_sq","mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations"],
 		"on_submit":"mtrh_dev.mtrh_dev.utilities.cleanup_sq"
 	},
 	"Tender Quotation Opening":{
-		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations"
+		"before_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations",
+		"on_submit": "mtrh_dev.mtrh_dev.tender_quotation_utils.notify_vendors_of_opening"
 	},
 	"Externally Generated Purchase Order":{
 		"before_save": "mtrh_dev.mtrh_dev.stock_utils.external_lpo_save_transaction",
@@ -190,15 +192,13 @@ doc_events = {
 		"before_save": "mtrh_dev.mtrh_dev.utilities.sync_purchase_receipt_attachments"
 	},
 	"Purchase Invoice":{
-		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", 
-		"mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po_v2"]
+		"before_save": ["mtrh_dev.mtrh_dev.utilities.update_pinv_attachments_before_save", "mtrh_dev.mtrh_dev.invoice_utils.validate_invoices_in_po_v2"]
 	},
 	"Payment Request":{
-		"before_save": ["mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request",
-				"mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state"],
-		"after_insert":"mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request",
-		"before_submit": "mtrh_dev.mtrh_dev.invoice_utils.finalize_invoice_on_pv_submit",
-		"on_submit": "mtrh_dev.mtrh_dev.invoice_utils.make_payment_entry_on_pv_submit"
+		"before_save": ["mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request","mtrh_dev.mtrh_dev.invoice_utils.update_invoice_state"],
+		"after_insert":"mtrh_dev.mtrh_dev.invoice_utils.clean_up_payment_request"
+		#"before_submit": "mtrh_dev.mtrh_dev.invoice_utils.finalize_invoice_on_pv_submit",
+		#"on_submit": "mtrh_dev.mtrh_dev.invoice_utils.make_payment_entry_on_pv_submit"
 	},
 	"Document Email Dispatch":{
 		"after_insert":"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email",
@@ -208,6 +208,7 @@ doc_events = {
 		"before_save":"mtrh_dev.mtrh_dev.utilities.project_budget_submit"
 	},
 	"Budget":{
+		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_duplicate_budget",
 		"on_submit":"mtrh_dev.mtrh_dev.utilities.project_budget_approved"
 	},
 	"Contact":{
@@ -230,6 +231,9 @@ doc_events = {
 	},
 	"SMS Log":{
 		"after_insert": "mtrh_dev.mtrh_dev.utilities.mark_sms_center_document_as_scheduled"
+	},
+	"Email Queue":{
+		"after_insert": "mtrh_dev.mtrh_dev.utilities.process_email_to_sms"
 	},
 	"ToDo":{
 		"after_insert":"mtrh_dev.mtrh_dev.tasks.append_task_assignment"
@@ -259,12 +263,10 @@ doc_events = {
 
 scheduler_events = {
 	"cron": {
-		"5 * * * *": [
-			"mtrh_dev.mtrh_dev.tender_quotation_utils.professional_opinion_to_award_cron"
-		]
+		
 	},
 	"all": [
-		"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
+		#"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
 	],
 	"hourly": [
 		"frappe.integrations.doctype.google_drive.google_drive.daily_backup"
@@ -273,7 +275,7 @@ scheduler_events = {
 # Testing
 # -------
 # before_tests = "mtrh_dev.install.before_tests"
-
+ 
 # Overriding Methods
 # ------------------------------
 #

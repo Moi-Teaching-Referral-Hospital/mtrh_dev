@@ -144,7 +144,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-11-06 09:30:20.500519",
+ "modified": "2020-12-04 15:45:11.109569",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Externally Generated Purchase Order",
@@ -161,20 +161,9 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Quotations Manager",
-   "share": 1,
-   "write": 1
   }
  ],
+ "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "track_changes": 1

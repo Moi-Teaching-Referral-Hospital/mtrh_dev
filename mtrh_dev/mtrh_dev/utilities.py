@@ -168,6 +168,13 @@ def cleanup_sq(doc, state):
 	doc.run_method("set_missing_values")
 	#doc.save(ignore_permissions = True)
 	return
+def cleanup_item_idx(doc, state):
+	i =0
+	#frappe.msgprint("Realigning row indexes")
+	for d in doc.get("items"):
+		i += 1
+		d.idx = i
+	doc.notify_update
 #====================================================================================================================================================
 # ADD IMPORTANT ACTION LOGS TO DOCUMENTS. THESE LOGS CAN THEN BE AVAILABLE ON PRINT MODE TO TRACK APPROVALS AND DECISIONS ON DOCUMENTS.
 #====================================================================================================================================================
@@ -640,6 +647,20 @@ def schedule_sms_to_user(userid, sms_message):
 	sms_log.insert()
 	frappe.msgprint(_(f"""User {userid} will be alerted through SMS"""))
 	return
+def sms_delivery_status_update_cron():
+	sent  = frappe.db.sql("""SELECT name FROM `tabSMS Log` WHERE status ='Sent' and creation >= '2020-11-25'""",as_dict=True)
+	docs = [frappe.get_doc("SMS Log", x.get("name")) for x in sent]
+	#mark_sms_delivery_status(doc)
+	list(map(lambda x: mark_sms_delivery_status(x), docs))
+def mark_sms_delivery_status(doc):
+	if not doc.sent_to:
+		return
+	if "sending success" in doc.sent_to:
+		doc.status ="Delivered"
+	else:
+		doc.status="Undelivered"
+	doc.flags.ignore_permissions =True
+	doc.save()
 def mark_sms_center_document_as_scheduled(doc, state):
 	if not doc.get("is_not_from_sms_center"):
 		doc.set("status", "Scheduled")
@@ -677,6 +698,15 @@ def send_scheduled_sms_cron():
 		sql_upd_sms = f"UPDATE `tabSMS Log` SET status = 'Processed' WHERE `name` IN {sms_names_str}"
 		frappe.db.sql(sql_upd_sms)
 	return
+def test_bulk_sms():
+	contacts_arr =["0722810063"]
+	message ="Testing bulk SMS"
+	incoming_payload = [
+		 {
+			"phone": x,
+			"message": message
+		} for x in contacts_arr]
+	send_sms_alert(json.dumps(incoming_payload))	
 def queue_bulk_sms_docs_cron():
 	doclist = frappe.db.sql(f"""SELECT name FROM `tabBulk SMS Dispatch`\
 		 WHERE evaluated = 0 and docstatus = 1""", as_dict=True)
@@ -743,6 +773,7 @@ def assign_department_permissions(doc,state):
 							"allow":"Department",
 							"for_value":department}):'''
 	clear_user_permissions(userid,"Department")
+	clear_user_permissions(userid,"Leave Rota")
 	#frappe.get_doc()
 	fullname = doc.get("employee_name")
 	if department:
@@ -755,7 +786,36 @@ def assign_department_permissions(doc,state):
 				apply_to_all_doctypes=0,
 				applicable_for="Material Request"
 			)).insert(ignore_permissions=True)
+			frappe.get_doc(dict(
+				doctype='User Permission',
+				user=userid,
+				allow="Department",
+				for_value=department,
+				apply_to_all_doctypes=0,
+				applicable_for="Leave Rota"
+			)).insert(ignore_permissions=True)
 			frappe.msgprint("User {0} - {1} has been assigned to {2}".format(userid, fullname, department))
+
+			#THERE IS A FRAPPE ERROR WHERE USERS ASSIGNED TO TREE CAN'T SEE IMMEDIATE CHILD DEPARTMENTS.
+			#GET CHILD NON TREE DEPARTMENTS
+			child_non_group_departments = frappe.db.get_list("Department", filters={"is_group": False, "parent_department": department}, fields=["name"])
+			for child in child_non_group_departments:
+				frappe.get_doc(dict(
+					doctype='User Permission',
+					user=userid,
+					allow="Department",
+					for_value=child.get("name"),
+					apply_to_all_doctypes=0,
+					applicable_for="Material Request"
+				)).insert(ignore_permissions=True)
+				frappe.get_doc(dict(
+					doctype='User Permission',
+					user=userid,
+					allow="Department",
+					for_value=child.get("name"),
+					apply_to_all_doctypes=0,
+					applicable_for="Leave Rota"
+				)).insert(ignore_permissions=True)
 		else:
 			frappe.msgprint("Department permissions have not been applied since the user does not have a log in account.")
 	else:
@@ -765,6 +825,8 @@ def process_comment(doc,state):
 		sender_fullname = get_fullname(frappe.session.user)
 		mentions = extract_mentions(doc.content)
 		if not mentions:
+			#DISABLED FOR NOW: 
+			return
 			#ALERT ALL USERS WHO HAVE EVER ACTIONED ON THIS DOCUMENT.
 			if  doc.get("comment_type") == "Comment" and doc.get("owner")!="Administrator":
 				list_of_action_users = frappe.db.get_all("Comment", filters = {"reference_name": doc.reference_name, "comment_type": ["IN", ["Workflow","Created","Edit","Shared","Comment"]]}, fields=["comment_email"])
@@ -951,7 +1013,9 @@ def return_budget_dict(dimension,dimension_name,account):
 		"budget_against":dimension,#ths
 		"budget_against_filter":[dimension_name]
 		}
-	pl = run(report_name, filters)
+	pl = run(report_name, filters, user="Administrator")
+	#need = []
+	#if pl.get('result') and pl.get('result')[0]:
 	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
 	from datetime import datetime
 	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
@@ -981,19 +1045,25 @@ def return_budget_dict(dimension,dimension_name,account):
 		data_to_return['t_balance'] = single_row[21]
 	return data_to_return
 def validate_budget_exists(doc, state):
+	if doc.get("doctype")=="Material Request" and doc.get("purpose") in ["Material Issue","Material Transfer"]:
+		return
 	department = doc.get("items")[0].get("department")
+	project = doc.get("project")
+	dimension, dimension_name = "Department", department
+	if project: dimension, dimension_name ="Project", project
+	if frappe.session.user == "Administrator": return #department is None or not department: return #ADDED THIS AFTER ERROR DURING AUTOGENERATION DURING REORDER LEVEL CHECK
 	fy = frappe.defaults.get_user_default("fiscal_year")
-	if not frappe.get_value("Budget",{"department": department,"fiscal_year":fy,"docstatus": 1},"name"):
-		frappe.throw(f"Sorry, there isn't a budget set up  for {department} Financial Year: {fy}\
+	if not frappe.get_value("Budget",{str(dimension): dimension_name,"fiscal_year":fy,"docstatus": 1},"name"):
+		frappe.throw(f"Sorry, there isn't a budget set up  for {dimension} {dimension_name} Financial Year: {fy}\
 		 and as such this expenditure cannot be incurred")
 	expense_accounts =[x.get("expense_account") for x in doc.get("items")]
 	unique_expense_accounts = list(dict.fromkeys(expense_accounts))
 	for d in unique_expense_accounts:
-		budget = frappe.get_value("Budget",{"department": department,"fiscal_year":fy,"docstatus": 1},"name")
+		budget = frappe.get_value("Budget",{dimension: dimension_name,"fiscal_year":fy,"docstatus": 1},"name")
 		document = frappe.get_doc("Budget", budget)
 		accounts = [x.get("account") for x in document.get("accounts")]
 		if d not in accounts:
-			frappe.throw(f"""Sorry, there is no Approved Votebook Allocation for {d} in {department}""")
+			frappe.throw(f"""Sorry, there is no Approved Votebook Allocation for {d} in {dimension} {dimension_name}""")
 	return
 @frappe.whitelist()
 def return_budget_all_dict(account):
@@ -1006,7 +1076,7 @@ def return_budget_all_dict(account):
 		"company":frappe.defaults.get_user_default("Company"),
 		"budget_against": "Department"
 		}
-	pl = run(report_name, filters)
+	pl = run(report_name, filters, user="Administrator")
 	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
 	from datetime import datetime
 	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
@@ -1062,12 +1132,12 @@ def get_votehead_balance(document_type, document_name):
 		#BUDGET BALANCES
 		quarter_budget, annual_budget = frappe.format(vote.get("q_budget") or 0.0, 'Currency'), frappe.format(vote.get("t_budget") or 0.0, 'Currency')
 
-		real_quarter_commitment = vote.get("q_balance") or 0 + total_amount_older_pos + amount
-		real_annual_commitment = vote.get("t_balance") or 0 + total_amount_older_pos + amount
+		real_quarter_commitment = (vote.get("q_balance") or 0.0) + (amount or 0.0) + total_amount_older_pos
+		real_annual_commitment = (vote.get("t_balance") or 0.0) + (amount or 0.0) + total_amount_older_pos
 		
 		
 		#FORMAT THE VOTE BALANCE STATEMENT
-		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
+		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%' style='border-collapse: collapse;'>".format(department, account)
 		vote_statement += "<tr><td><b>Item</b></td><td>Quarter</td><td>Annual</td></tr>"
 		vote_statement += "<tr><td><b>Allocation</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_budget, annual_budget)
 		vote_statement += "<tr><td><b>Balance Before</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(frappe.format(real_quarter_commitment, 'Currency'), frappe.format(real_annual_commitment, 'Currency'))
@@ -1122,7 +1192,7 @@ def get_votehead_balance(document_type, document_name):
 		this_entry_formatted = frappe.format(this_entry_amount, 'Currency')
 		
 		#FORMAT THE VOTE BALANCE STATEMENT
-		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%' >".format(department, account)
+		vote_statement = "<b>Vote Balance Statement - {0} - {1}</b></hr><br/><table border='1' width='100%'  style='border-collapse: collapse;'>".format(department, account)
 		vote_statement += "<tr><td><b>Item</b></td><td>Quarter</td><td>Annual</td></tr>"
 		vote_statement += "<tr><td><b>Allocation</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_budget, annual_budget)
 		vote_statement += "<tr><td><b>Commitments and Expenditure</b></td><td align='right'>{0}</td><td align='right'>{1}</td></tr>".format(quarter_aggregated, annual_aggregated)
@@ -1132,10 +1202,11 @@ def get_votehead_balance(document_type, document_name):
 		vote_statement += "</table>"
 		#forcefully_update_doc_field("Purchase Order", doc.get("name"), "vote_balance", vote_statement)
 		if not doc.get("vote_statement") and doc.get("docstatus") == 0:
-			doc.set("vote_statement", vote_statement)
-			doc.flags.ignore_permissions = True
-			doc.save()
-			doc.notify_update()
+			frappe.db.set_value("Payment Request", doc.get("name"), "vote_statement", vote_statement)
+			#doc.set("vote_statement", vote_statement)
+			#doc.flags.ignore_permissions = True
+			#doc.save()
+			#doc.notify_update()
 		#from mtrh_dev.mtrh_dev.tender_quotation_utils import document_dashboard
 		#vote_statement+= document_dashboard(document_type, document_name)
 		return vote_statement
@@ -1147,7 +1218,7 @@ def daily_pending_work_reminder():
 	#GET UNIQUE LIST OF USERS WITH PENDING WORK ON WORKFLOW ACTION TABLE.
 	user_pending_counts = frappe.db.get_all('Workflow Action',
 		filters = {
-			'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled']],#Approved
+			'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled', 'Draft']],#Approved
 			'status': ['not like', '%Completed%']
 		},
 		fields=['count(name) as count', 'user'],
@@ -1158,7 +1229,7 @@ def daily_pending_work_reminder():
 		for user in user_pending_counts:
 			user_pending_works = frappe.db.get_all('Workflow Action',
 				filters = {
-					'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled']],
+					'workflow_state': ['NOT IN', ['%Approved%', '%Cancelled%', 'Approved', 'Cancelled', 'Draft']],
 					'status': ['not like', '%Completed%'],
 					'user': user.get("user")
 				},
@@ -1167,7 +1238,7 @@ def daily_pending_work_reminder():
 			no_of_documents = user.get("count")
 			user_email = user.get("user")
 			email_message = f"Dear Sir/Madam,<br/>There are {no_of_documents} items which are pending in your in-tray in the ERP. It is advised that prompt action be taken on the documents to improve efficieny. The list of items is shown below. You can also find all your pending work at all times here: https://bit.ly/2F8E18L <br/>"
-			email_message += f"<b>Pending Items for - {user_email}: </b><hr><table border='1' width='100%' >"
+			email_message += f"<b>Pending Items for - {user_email}: </b><hr><table border='1' width='100%'  style='border-collapse: collapse;' >"
 			email_message += "<tr><td><b>Document Type</b></td><td>Document</td><td>Current State</td><td align='right'>Action Delay</td></tr>"
 			
 			date_format = "%m/%d/%Y"
@@ -1240,12 +1311,20 @@ def send_notifications(recipients, message, subject, doctype = None, docname = N
 				"description": _(message)
 			}
 		}
-
-	
-	enqueue(method=frappe.sendmail, queue='short', timeout=300, **email_args)
+	enqueue(method=frappe.sendmail, queue='long', timeout=300, **email_args)
+def submit_project_budget():
+	print("Checking for un-submitted project budgets")
+	unsubmitted_project_budgets = frappe.db.sql(f"""SELECT name FROM `tabProject`\
+		 WHERE docstatus =1 AND hand_in_budget=0""", as_dict =1)
+	docs =[frappe.get_doc("Project", x.get("name")) for x in unsubmitted_project_budgets]
+	print("Found",len(docs))
+	if docs:
+		list(map(lambda x: project_budget_submit(x,"Submitted"),docs))
 def project_budget_submit(doc , state):
-	hand_in_budget = doc.get("hand_in_budget")
-	if hand_in_budget:
+	hand_in_budget = doc.get("docstatus")
+	
+	if hand_in_budget ==1:
+		frappe.msgprint("Preparing to post budget..")
 		project = doc.get("name")
 		budget_exists = frappe.db.sql(f"SELECT name, docstatus FROM `tabBudget` WHERE project ='{project}'",as_dict=True)
 		submitted_budgets =[x for x in budget_exists if x.get("docstatus")=="1"]
@@ -1258,18 +1337,20 @@ def project_budget_submit(doc , state):
 			for x in i_table ]
 		#frappe.msgprint(budget_items)
 		#return budget_items
+		is_approved = doc.get("budget_is_approved_externally")
 		import collections, functools, operator 
 		reduced_budget_dict = dict(functools.reduce(operator.add, 
 			map(collections.Counter, budget_items))) 
-		tobereturned = make_budget("Project", project, reduced_budget_dict)
+		tobereturned = make_budget("Project", project, reduced_budget_dict,is_approved)
 		doc.flags.ignore_permissions=True
 		doc.run_method("set_missing_values")
-		doc.set("status","Pending Budget Approval")
-		doc.set("budget_submitted", True)
-		doc.set("hand_in_budget", False)
-		
+		#doc.set("status","Pending Budget Approval")
+		#doc.db_set("budget_submitted", True)
+		doc.db_set("hand_in_budget", doc.get("docstatus"))
+		#doc.set("hand_in_budget", False)
+		frappe.msgprint("Budget has been posted..")
 		return tobereturned
-def make_budget(dimension, dimension_name, items):
+def make_budget(dimension, dimension_name, items, is_approved=False):
 	budget = frappe.get_doc({
 		"doctype": "Budget",
 		"budget_against" :  dimension,
@@ -1292,6 +1373,8 @@ def make_budget(dimension, dimension_name, items):
 	budget.flags.ignore_links=True
 	#budget.run_method("set_missing_values")
 	budget.insert()
+	if is_approved:
+		budget.submit()
 	return budget
 @frappe.whitelist()
 def recall_budget(dimension, dimension_name):
@@ -1306,7 +1389,9 @@ def recall_budget(dimension, dimension_name):
 		frappe.msgprint(_("The budget for the project has been recalled successfully."))
 		return
 def project_budget_approved(doc , state):
-	frappe.db.set_value("Project", doc.get("project"), "status", "Budget Approved")
+	if doc.get("project"):
+		frappe.db.set_value("Project", doc.get("project"), "status", "Budget Approved")
+		frappe.db.set_value("Project", doc.get("project"), "budget_submitted", True)
 @frappe.whitelist()
 def update_sq(docname=None):
 	docname = 'PUR-SQTN-2020-00002'
@@ -1402,22 +1487,22 @@ def return_fields_to_capitalize(doc):
 	meta  = meta = frappe.get_meta(doc.get("doctype"))
 	fieldnames =[x.get("fieldname") for x in meta.get("fields") \
 		 if x.get("fieldtype") in ["Data"] and x.get("fieldname") not in\
-			  ["status","workflow_state","abbr","attribute_name","abbreviation"]]
+			  ["status","workflow_state","abbr","attribute_name","abbreviation", "name"]]
 	#frappe.throw(fieldnames)
 	return fieldnames
 def capitalize_essential_fields(doc , state):
 	#frappe.throw(doc.get("doctype"))
 	#return
-	allowed_to_capitalize = frappe.db.get_value("DocType",doc.get("doctype"),"module") in ["Buying",\
-		"Fleet Management System","Stock","Library Management","Fleet Management System"]
-	if not allowed_to_capitalize or "Setting" in doc.get("doctype"):
-		return
-	else:
-		fields_to_capitalize = return_fields_to_capitalize(doc)
-		if fields_to_capitalize:
-			for d in fields_to_capitalize:
-				if doc.get(d):
-					doc.set(d, str(doc.get(d)).upper())
+	#allowed_to_capitalize = frappe.db.get_value("DocType",doc.get("doctype"),"module") in ["Buying",\
+	#	"Fleet Management System","Stock","Library Management","Fleet Management System"]
+	#if not allowed_to_capitalize or "Setting" in doc.get("doctype"):
+	#	return
+	#else:
+	fields_to_capitalize = return_fields_to_capitalize(doc)
+	if fields_to_capitalize:
+		for d in fields_to_capitalize:
+			if doc.get(d):
+				doc.set(d, str(doc.get(d)).upper())
 	return
 def enforce_variants(doc, state):
 	if not doc.get("variant_of"):
@@ -1443,7 +1528,266 @@ def append_attachments_to_file(doc, state):
 		for url in attachment_urls:
 			filedict = frappe.db.get_value("File",{"file_url": url}\
 				,['file_name','folder'],as_dict=1)
-			save_url(url, filedict.get("file_name"), doc.get("doctype"),\
-				doc.get("name"), filedict.get("folder"),True,None)
+			if filedict is not None:
+				save_url(url, filedict.get("file_name"), doc.get("doctype"),\
+					doc.get("name"), filedict.get("folder"),True,None)
 	return
-	
+
+def process_email_to_sms(doc, state):
+	the_email = doc.get("message")
+	recipients = doc.get("recipients")
+
+	#SEND OUT SMS IF THE EMAIL CONTAINS OTP CODE
+	if recipients[0]:
+		import re
+		code = re.search(r"\*\*([0-9]{6})\*\*", the_email)
+		if code:
+			the_code = code.group(1)
+			notification_message = f"Your login Code: {the_code} \n This verifies your digital signature!"
+			#schedule_sms_to_user(recipients[0].recipient, notification_message)
+			#THERE IS NEED TO SEND SMS IMMEDIATELY.
+			incoming_payload = [{
+				"phone": get_user_phonenumber(recipients[0].recipient),
+				"message": notification_message
+			}]
+			#incoming_payload.append(data.copy())
+			send_sms_alert(json.dumps(incoming_payload))
+def create_draft_leave_rotas():
+	enabled_leave_year = frappe.db.get_value("Leave Year", {"enabled":1}, as_dict=True).name
+	if enabled_leave_year:
+		departments = frappe.db.sql(f"""SELECT name FROM `tabDepartment`\
+			 WHERE name NOT IN (SELECT department FROM `tabLeave Rota` WHERE leave_year ='{enabled_leave_year}')""", as_dict=1)
+		unique_departments = [d.get("name") for d in departments]
+
+		for d in departments:
+			department_name = d.get("name")
+			if department_name in unique_departments:
+				frappe.get_doc(dict(
+						doctype ='Leave Rota',	
+						department = d.get("name"),
+						leave_year = enabled_leave_year
+					)).insert(ignore_permissions=True)
+			user_list = frappe.db.sql(f"""SELECT user_id FROM `tabEmployee`\
+				 WHERE department ='{department_name}'""",as_dict=True)
+			users = [x.get("user_id") for x in user_list]
+			#print(users)
+			#apply_department_permission_on_leave_rota(users, d)
+def apply_department_permission_on_leave_rota():
+	user_list = frappe.db.sql(f"""SELECT user_id , department FROM `tabEmployee`\
+				 WHERE status = 'Active' and user_id is not null""",as_dict=True)
+	for d in user_list:
+		if d and d.user_id and d.get("department"):
+			frappe.get_doc(dict(
+				doctype='User Permission',
+				user=d.get("user_id"),
+				allow="Department",
+				for_value= d.get("department"),
+				apply_to_all_doctypes=0,
+				applicable_for="Leave Rota"
+			)).insert(ignore_permissions=True)
+def apply_buyer_section(doc, state):
+	pass
+@frappe.whitelist()
+def reassign_workflow_items(current_user, new_user, workflow, make_copy = None, doctype = None):
+	if doctype:
+		#BE SPECIFIC TO ONLY THE DOCTYPE.
+		if not make_copy:
+			#ONLY COPY AND DON'T DELETE FOR CURRENT USER.
+			actions = frappe.db.get_all('Workflow Action',
+				filters={
+					"reference_doctype": doctype,
+					"workflow_state": workflow,
+					"user": current_user
+				},
+				fields=["reference_name", "status"],
+				as_list=False
+			)
+			workflow_docs_list = '('+','.join("'{0}'".format(i) for i in [x.get("reference_name") for x in actions])+')'
+			if workflow_docs_list: frappe.db.sql(f"UPDATE `tabWorkflow Action` set user = '{new_user}' where user = '{current_user}' and reference_name IN {workflow_docs_list} and name !='1';")
+			"""for action in actions:
+				frappe.get_doc(dict(
+					doctype = 'Workflow Action',
+					user = new_user,
+					reference_doctype = doctype,
+					reference_name = action.get("reference_name"),
+					status = action.get("status"),
+					workflow_state = workflow
+				)).insert(ignore_permissions=True)"""
+def validate_duplicate_budget(doc, state):
+	department = doc.get("department")
+	fy = doc.get("fiscal_year")
+	docname = doc.get("name")
+	if department:
+		if frappe.db.sql(f"""select name from `tabBudget` WHERE department ='{department}'\
+			 AND fiscal_year ='{fy}' AND docstatus !='2' AND name !='{docname}'""") :
+			frappe.throw(f"Sorry there is an existing budget for {department} in {fy}")			
+@frappe.whitelist()
+def form_start_import_custom(docname): 
+	args = { "data_import": docname }
+	from frappe.core.doctype.data_import.data_import import start_import
+	enqueue(method=start_import, queue='short', timeout=300, **args)
+	return
+@frappe.whitelist()
+def imported_leave_balance(pf_number):
+	d = frappe.db.get_value("Leave Balance Migration",\
+		{"pf_number":pf_number},"leave_balance") or 0
+	return d if d < 15 else 15
+def validate_procurement_plan_exists(doc,state):
+	department = doc.get("department_name")
+	fy = doc.get("fiscal_year")
+	docname = doc.get("name")
+	if department:
+		if frappe.db.sql(f"""select name from `tabProcurement Plan` WHERE department_name ='{department}'\
+			 AND fiscal_year ='{fy}' AND docstatus !='2' AND name !='{docname}'""") :
+			frappe.throw(f"Sorry there is an existing procurement plan for {department} in {fy}")	
+def merge_procurement_plan():
+	parent ='PROC-INFORMATION & COMMUNICATION TECHNOLOGY DEPARTMENT - MTRH-2020-2021-11816-3'
+	doc = frappe.get_doc("Procurement Plan", parent)
+	department = doc.get("department_name")
+	fy = doc.get("fiscal_year")
+	idx = len(doc.get("procurement_item"))
+	items =[x.get("item_code") for x in doc.get("procurement_item")]
+	to_be_cancelled = frappe.db.sql(f"""select name from `tabProcurement Plan`\
+		 WHERE department_name ='{department}'\
+			 AND fiscal_year ='{fy}' AND docstatus !='2' AND name !='{parent}'""", as_dict=True) 
+	for d in to_be_cancelled:
+		this_parent = d.get("name")
+		document = frappe.get_doc("Procurement Plan", d.get("name"))
+		for j in document.get("procurement_item"):
+			idx += 1
+			item_code = j.get("item_code")
+			if item_code not in items:
+				sql = f"""UPDATE `tabProcurement Plan Item` set idx ='{idx}', parent ='{parent}' WHERE\
+					item_code ='{item_code}' AND parent ='{this_parent}' and name !=''"""
+				frappe.db.sql(sql)
+		document.flags.ignore_permissions = True
+		#frappe.cancel_doc(document)
+	return
+def cascade_item_default():
+	is_group_list = frappe.db.sql(f"""SELECT name FROM `tabItem Group` WHERE is_group=1 and name = 'DRUGS'""", as_dict=True)
+	if is_group_list:
+		group_docs =[frappe.get_doc("Item Group", x.get("name")) for x in is_group_list]
+		for d in group_docs:
+			parent = d.name
+			parent_defaults = d.get("item_group_defaults")[0]
+			child_groups = frappe.db.sql(f"""SELECT name FROM `tabItem Group` WHERE parent_item_group ='{parent}'""", as_dict=True)
+			child_docs = [frappe.get_doc("Item Group", x.get("name")) for x in child_groups]
+			list(map(lambda x: apply_group_defaults(x, parent_defaults), child_docs))
+def cascade_item_default_hook(doc,state):
+	#IF ONE IS NOT ADMINISTRATOR AND THEY ARE TRYING TO PLACE THIS GROUP ON THE ROUTE, THROW ERROR. ONLY ADMIN SHOULD DO THIS
+	if frappe.session.user != "Administrator" and doc.get("parent_item_group") == "All Item Groups":
+		frappe.throw("Please add this group under any of the existing groups and not 'All Item Groups'. Only administrator can create root group")
+	if doc.get("is_group"):
+		d = doc
+		parent =  d.name
+		parent_defaults = d.get("item_group_defaults")[0]
+		child_groups = frappe.db.sql(f"""SELECT name FROM `tabItem Group` WHERE parent_item_group ='{parent}'""", as_dict=True)
+		child_docs = [frappe.get_doc("Item Group", x.get("name")) for x in child_groups]
+		list(map(lambda x: apply_group_defaults(x, parent_defaults, state), child_docs))
+	else:
+		return
+def apply_group_defaults(doc, defaults=None, state=None):#CONTEXT= ITEM GROUP
+	print(doc.name,"is_locked:" , doc.is_locked)
+	if doc.is_locked:
+		return
+	item_group = doc.name
+	if defaults:
+		frappe.db.sql(f"""DELETE FROM `tabItem Default` WHERE parent ='{item_group}'""")
+		doc.append("item_group_defaults",{
+			"company": defaults.company,
+			"default_warehouse":defaults.default_warehouse,
+			"expense_account": defaults.expense_account,
+			"default_income_account": defaults.default_income_account
+		})
+		if not state:
+			doc.flags.ignore_permissions = True
+			doc.save()
+def merge_purchase_order(docname):
+	doc = frappe.get_doc("Purchase Order", docname)
+	items = [x.get("item_code") for x in doc.get("items")]
+	workflow_state, supplier = doc.get("workflow_state"), doc.get("supplier")
+	pos = frappe.db.sql(f"SELECT name FROM `tabPurchase Order`\
+		 WHERE workflow_state ='{workflow_state}' and supplier ='{supplier}' and name!= '{docname}'", as_dict=True)
+	order_docs =[frappe.get_doc("Purchase Order", x.get("name")) for x in pos]
+	if not isinstance(order_docs, list) or not order_docs:
+		return
+	for d in order_docs:
+		items2 = [x.get("item_code") for x in d.get("items")]
+		items_not_in_this_order = compare_po_items(items,items2, d.get("items"))
+def compare_po_items(order1_items, order2_items, po2_child):
+	items_not_in_this_order =[]
+	for x in order2_items:
+		if x not in order1_items:
+			items_not_in_this_order.append(x)
+	return items_not_in_this_order
+@frappe.whitelist()
+def raise_project_bq(docname, items):
+	try:
+		doc = frappe.get_doc("Project", docname)
+		items_to_raise = json.loads(items)[0]
+		item_codes  = [x for x in items_to_raise] 
+		mr_items = doc.get("procurement_plan_items")
+		mr_items_to_raise =[x for x in mr_items if x.item_code in item_codes]
+		#########
+		item_ids_str = '('+','.join("'{0}'".format(i) for i in item_codes)+')'
+		department = doc.department
+		warehouse, item_group = mr_items_to_raise[0].warehouse, mr_items_to_raise[0].item_group
+		material_request = frappe.get_doc({
+			"doctype": "Material Request",
+			"naming_series":"MAT-REQ-PROJ-.YYYY.-",
+			"material_request_type":"Purchase",	
+			"is_project": True,
+			"company":frappe.defaults.get_user_default("company"),
+			"schedule_date":date.today(),
+			"item_category": item_group,
+			"department":department,
+			"reason_for_this_request": f"Project {docname} ",
+			"set_warehouse": warehouse,
+			"transaction_date":date.today(),
+			"requested_by":frappe.session.user,	
+			"requester": frappe.session.user,		
+			"project": docname			
+			#"grand_total": grand_total,
+			#"total_request_value":grand_total,
+		})
+		material_request = append_mr_items(material_request, mr_items_to_raise, docname, department)
+		material_request.flags.ignore_permissions = True
+		material_request.insert()
+		material_request.submit()
+		frappe.db.sql(f"""UPDATE `tabProject Procurement Plan Item` SET\
+			ordered =1 WHERE parent ='{docname}'\
+				 AND item_code in  {item_ids_str}""")
+	except Exception as e:
+		frappe.throw(f"{e}")
+	#########
+	doc.notify_update()
+	return material_request
+def append_mr_items(doc, items, project=None, department=None):
+	for item in items:
+		unit_price,grand_total = item.rate or 0, item.rate or 0 * item.qty or 0 
+		rowdict ={}
+		rowdict["item_code"] = item.item_code
+		rowdict["item_name"] = item.item_name
+		rowdict["qty"] = item.qty
+		rowdict["brand"] = item.brand
+		rowdict["stock_uom"] = item.stock_uom
+		rowdict["uom"] = item.uom
+		rowdict["rate"] = unit_price
+		rowdict["amount"] = grand_total
+		rowdict["conversion_factor"] = item.conversion_factor
+		rowdict["schedule_date"] = item.schedule_date
+		rowdict["expense_account"] = item.expense_account
+		rowdict["department"] = department if department else None
+		rowdict["warehouse"] = item.warehouse
+		rowdict["stock_qty"] = item.stock_qty
+		rowdict["project"] = project if project else None
+		doc.append("items", frappe._dict(rowdict))
+		#material_request_items = [frappe._dict(rowdict)]
+	return compute_mr_totals(doc)
+def compute_mr_totals(doc):
+	amount =0.0
+	for x in doc.get("items"):
+		amount += x.get("amount")
+	doc.total_request_value = amount
+	doc.grand_total = amount
+	return doc

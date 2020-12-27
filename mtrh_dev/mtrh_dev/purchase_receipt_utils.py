@@ -129,8 +129,9 @@ def delivery_completed_status(doc , state):
 					)
 	process_qi(unalerted_grns)
 	return unalerted_grns
-def update_posting_date_and_time(doc):
+def update_posting_date_and_time(docname):
 	#CONTEXT PURCHASE RECEIPT
+	doc = frappe.get_doc("Purchase Receipt", docname)
 	doc.flags.ignore_permissions = True
 	doc.set("posting_date",date.today())
 	doc.set("posting_time",datetime.now().strftime("%H:%M:%S"))

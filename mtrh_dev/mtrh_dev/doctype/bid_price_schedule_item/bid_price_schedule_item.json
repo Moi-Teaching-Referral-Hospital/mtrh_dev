@@ -6,16 +6,11 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "item_name",
   "item_code",
   "supplier_part_no",
-  "qty",
-  "rate",
-  "amount",
-  "bidder",
   "column_break_3",
-  "award_type",
-  "sample_provided",
+  "item_name",
+  "schedule_date",
   "section_break_5",
   "description",
   "item_group",
@@ -24,17 +19,24 @@
   "image",
   "image_view",
   "quantity",
+  "qty",
   "stock_uom",
   "col_break2",
   "uom",
   "conversion_factor",
   "stock_qty",
+  "warehouse_and_reference",
+  "warehouse",
+  "project_name",
   "col_break4",
   "material_request",
   "material_request_item",
   "section_break_23",
-  "supplier_quotation",
-  "page_break"
+  "page_break",
+  "bidder",
+  "rate",
+  "amount",
+  "award_type"
  ],
  "fields": [
   {
@@ -47,7 +49,6 @@
    "oldfieldtype": "Link",
    "options": "Item",
    "print_hide": 1,
-   "read_only": 1,
    "reqd": 1,
    "search_index": 1
   },
@@ -64,7 +65,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "columns": 2,
    "fieldname": "item_name",
    "fieldtype": "Data",
    "in_global_search": 1,
@@ -72,7 +72,6 @@
    "label": "Item Name",
    "oldfieldname": "item_name",
    "oldfieldtype": "Data",
-   "read_only": 1,
    "search_index": 1
   },
   {
@@ -87,9 +86,8 @@
    "label": "Description",
    "oldfieldname": "description",
    "oldfieldtype": "Small Text",
-   "print_hide": 1,
    "print_width": "300px",
-   "read_only": 1,
+   "reqd": 1,
    "width": "300px"
   },
   {
@@ -146,7 +144,6 @@
    "oldfieldname": "qty",
    "oldfieldtype": "Currency",
    "print_width": "60px",
-   "read_only": 1,
    "reqd": 1,
    "width": "60px"
   },
@@ -164,9 +161,11 @@
    "fieldtype": "Column Break"
   },
   {
+   "columns": 1,
    "fieldname": "uom",
    "fieldtype": "Link",
-   "label": "Unit of Issue",
+   "in_list_view": 1,
+   "label": "UOM",
    "oldfieldname": "uom",
    "oldfieldtype": "Link",
    "options": "UOM",
@@ -211,8 +210,7 @@
   },
   {
    "fieldname": "section_break_23",
-   "fieldtype": "Section Break",
-   "label": "Links"
+   "fieldtype": "Section Break"
   },
   {
    "allow_on_submit": 1,
@@ -227,66 +225,67 @@
   },
   {
    "fieldname": "bidder",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Bidder",
-   "options": "Supplier",
-   "read_only": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
    "columns": 1,
-   "default": "0.0",
    "fieldname": "rate",
-   "fieldtype": "Float",
+   "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Unit Price",
-   "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "read_only": 1
   },
   {
-   "default": "0.0",
+   "columns": 2,
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Total Price",
-   "read_only": 1,
-   "reqd": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Total",
+   "read_only": 1
   },
   {
+   "columns": 1,
    "fieldname": "award_type",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Decision",
-   "options": "\nAwarded\nAlternative 1\nAlternative 2\nAlternative 3",
-   "print_hide": 1,
-   "show_days": 1,
-   "show_seconds": 1
+   "options": "Awarded\nAlternative 1\nAlternative 2\nAlternative 3\nSend for Renegotiation\nRe-Tender or Refloat Quotations\nTerminate"
   },
   {
-   "default": "0",
-   "fieldname": "sample_provided",
-   "fieldtype": "Check",
-   "label": "Sample Provided?",
-   "show_days": 1,
-   "show_seconds": 1
+   "columns": 2,
+   "default": "Today",
+   "fieldname": "schedule_date",
+   "fieldtype": "Date",
+   "label": "Required Date"
   },
   {
-   "fieldname": "supplier_quotation",
+   "fieldname": "warehouse_and_reference",
+   "fieldtype": "Section Break",
+   "label": "Warehouse and Reference"
+  },
+  {
+   "columns": 2,
+   "fieldname": "warehouse",
    "fieldtype": "Link",
-   "label": "Supplier Quotation",
-   "options": "Supplier Quotation",
-   "show_days": 1,
-   "show_seconds": 1
+   "label": "Warehouse",
+   "oldfieldname": "warehouse",
+   "oldfieldtype": "Link",
+   "options": "Warehouse",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "project_name",
+   "fieldtype": "Link",
+   "label": "Project Name",
+   "options": "Project",
+   "print_hide": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2020-10-16 12:58:23.287334",
+ "modified": "2020-12-27 15:02:46.285930",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Bid Price Schedule Item",

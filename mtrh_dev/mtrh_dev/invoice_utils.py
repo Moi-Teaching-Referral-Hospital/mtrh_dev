@@ -22,6 +22,11 @@ from erpnext.assets.doctype.asset_category.asset_category import get_asset_categ
 from erpnext.setup.doctype.brand.brand import get_brand_defaults
 from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state
 from frappe.model.workflow import get_workflow_name
+from frappe.utils import flt, nowdate, get_url
+from erpnext.accounts.doctype.payment_request.payment_request import get_payment_entry
+from erpnext.accounts.doctype.payment_request.payment_request import make_payment_entry
+from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry, get_company_defaults
+from erpnext.accounts.utils import get_account_currency
 
 
 class InvoiceUtils(Document):
@@ -60,7 +65,7 @@ def raise_payment_request(doc, state):
 				########################################################
 				#INSERT DOCUMENT
 				payment_request_doc.insert(ignore_permissions=True)
-				doc.db_set("sent_to_pv", True)
+				#doc.db_set("sent_to_pv", True)
 				frappe.msgprint("Payment request {0} has been created successfully. ".format(payment_request_doc.get("name")))
 		except Exception as e:
 			frappe.msgprint("Operation could not be completed because of {0}"\
@@ -70,6 +75,7 @@ def raise_payment_request(doc, state):
 		payment_request_doc = frappe.get_doc("Payment Request", docname)
 		payment_request_doc = append_invoice_to_request(payment_request_doc, doc)
 		payment_request_doc.save(ignore_permissions=True)
+	doc.db_set("sent_to_pv", True)
 	return
 def append_invoice_to_request(payment_request, purchase_invoice):
 	invoice = purchase_invoice.get("name")
@@ -136,7 +142,8 @@ def validate_invoices_in_po(doc , state):
 													},
 													fields=['parent'],
 													group_by='parent',
-													as_list = False)'''									
+													as_list = False)'''				
+									
 				sql_to_run = f"""SELECT DISTINCT parent FROM `tabPurchase Invoice Item`\
 					WHERE purchase_order = '{purchase_order}'\
 						 AND parent IN (SELECT name FROM `tabPurchase Invoice`\
@@ -175,16 +182,39 @@ def validate_invoices_in_po(doc , state):
 					from mtrh_dev.mtrh_dev.purchase_receipt_utils import close_purchase_order
 					po_doc = frappe.get_doc("Purchase Order", purchase_order)
 					close_purchase_order(po_doc)
-	return				
-def finalize_invoice_on_pv_submit(doc, state):
-	frappe.db.set_value(doc.get("reference_doctype"), doc.get("reference_name"),"workflow_state", "Pending Payment Voucher")
-	invoice_to_finalize = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
-	invoice_to_finalize.flags.ignore_permissions = True
-	invoice_to_finalize.submit()
-	invoice_to_finalize.notify_update()
-	frappe.msgprint(_("The payment voucher has been submitted successfully."))
+	return	
+def payment_request_submit_operations():
+	unprocessed_pvs =frappe.db.sql(f"""SELECT name FROM `tabPayment Request`\
+		 WHERE docstatus =1 and processed = 1 and sent_for_payment = 0""", as_dict=True)
+	if unprocessed_pvs:
+		documents =[frappe.get_doc("Payment Request", x) for x in unprocessed_pvs]
+		list(map(lambda  x: make_payment_entry_on_pv_submit(x), documents))
+def invoice_submit_operations_cron():
+	#sudo -u erp-mtrh /usr/local/bin/bench --site portal.mtrh.go.ke execute mtrh_dev.mtrh_dev.invoice_utils.invoice_submit_operations_cron
+	unprocessed_pvs =frappe.db.sql(f"""SELECT name FROM `tabPayment Request`\
+		 WHERE docstatus =1 and processed = 0""", as_dict=True)
+	if unprocessed_pvs:
+		documents =[frappe.get_doc("Payment Request", x) for x in unprocessed_pvs]
+		list(map(lambda  x: finalize_invoice_on_pv_submit(x), documents))
+def finalize_invoice_on_pv_submit(doc):
+	try:
+		for invoice in doc.get("invoices"):
+			d = invoice.get("invoice_number")
+			invoice_to_finalize = frappe.get_doc("Purchase Invoice", d)
+			department = invoice_to_finalize.get("items")[0].department
+			invoice_to_finalize.db_set("department", department)
+			invoice_to_finalize.flags.ignore_permissions = True
+			invoice_to_finalize.submit()
+			invoice_to_finalize.notify_update()
+		doc.db_set("processed",True)
+	except Exception as e:
+		doc.db_set("processed", False)
+		frappe.throw(f"{e}")
+	frappe.msgprint(_("Payment invoices have been submitted successfully."))
 	return
 def update_invoice_state(doc, state):
+	if doc.docstatus ==1:
+		return
 	workflow = get_workflow_name(doc.get('doctype'))
 	if workflow:
 		new_workflow_state = get_doc_workflow_state(doc)
@@ -193,19 +223,79 @@ def update_invoice_state(doc, state):
 			return
 		else:
 			#WORKFLOW STATE CHANGED. SO UPDATE INVOICE STATE AS WELL.
-			frappe.db.set_value(doc.get("reference_doctype"), doc.get("reference_name"),"workflow_state", new_workflow_state)
-			frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name")).notify_update()
+			invoice_docs =[frappe.get_doc("Purchase Invoice", x.get("invoice_number")) for x in doc.get("invoices")]
+			for d in invoice_docs:
+				frappe.db.set_value(d.get("doctype"), d.get("name"),"workflow_state", new_workflow_state)
+				d.notify_update()
 			#invoice_to_update = frappe.get_doc(doc.get("reference_doctype"), doc.get("reference_name"))
 			#invoice_to_update.flags.ignore_permissions = True
 			#invoice_to_update.set("workflow_state", new_workflow_state)
 			#invoice_to_update.save()
 	return
-def make_payment_entry_on_pv_submit(doc,state):
-	from erpnext.accounts.doctype.payment_request.payment_request import make_payment_entry
-	payment_entry_doc = make_payment_entry(doc.get("name"))
-	payment_entry_doc.flags.ignore_permissions = True
-	payment_entry_doc.insert()
-	return 
+def make_payment_entry_on_pv_submit(doc):
+	print(doc.doctype,doc.name)
+	pe_exists = frappe.db.get_value("Payment Entry",{"linked_payment_voucher": doc.name},"name")
+	print("this", pe_exists)
+	try:
+		for d in doc.get("invoices"):
+			invoice_doc = frappe.get_doc("Purchase Invoice", d.invoice_number)
+			if pe_exists:
+				print(f"Payment Entry Exists: {pe_exists}")
+				pe = pe_exists
+				pe = append_invoice_to_pe(pe, d.get("invoice_number"))	
+				pe.save()
+			else:
+				print("Here because no PE exists")
+				
+				party_account = invoice_doc.credit_to
+				party_account_currency = invoice_doc.get("party_account_currency")\
+					 or get_account_currency(party_account)
+				if party_account_currency == invoice_doc.company_currency\
+						and party_account_currency != invoice_doc.currency:
+					party_amount = invoice_doc.base_grand_total
+				else:
+					party_amount = invoice_doc.grand_total
+				bank_amount = invoice_doc.grand_total
+				print(f"Starting business {bank_amount}")
+				pe2 = return_custom_payment_entry(invoice_doc, submit=False, party_amount=party_amount,\
+					bank_amount=bank_amount,payment_request_doc = doc)
+				print(f"Now proceeding....")
+				pe2.linked_payment_voucher = doc.name
+				'''pe2 = get_payment_entry(invoice_doc.doctype, invoice_doc.name,\
+					party_amount=party_amount, bank_account=invoice_doc.payment_account,\
+						 bank_amount=bank_amount)'''
+				pe2.flags.ignore_permissions = True
+				pe2.run_method("set_missing_values")
+				pe2.insert()
+				print("Inserted", pe2.name)
+				if pe2:
+					pe_exists = pe2.name
+					print("here because pe2 exists")
+		doc.db_set("sent_for_payment",True)
+	except Exception as e:
+		doc.db_set("sent_for_payment",False)
+		frappe.throw(f"{e}")
+	return
+def append_invoice_to_pe(pe_no, invoice_number):
+	pe,pi = frappe.get_doc("Payment Entry", pe_no), frappe.get_doc("Purchase Invoice", invoice_number)
+	print("exists, so will work with", pe) 
+	grand_total = pi.base_rounded_total or pi.base_grand_total
+	#WE NEED TO RECALCULATE THE TOTAL AMOUNT ALLOCATED TO THE PAYMENT
+	pe.set("paid_amount" , pe.get("paid_to") + grand_total)
+	outstanding_amount = pi.outstanding_amount
+	pe.append("references", {
+					'reference_doctype': "Purchase Invoice",
+					'reference_name': invoice_number,
+					"bill_no": pi.get("bill_no"),
+					"due_date": pi.get("due_date"),
+					'total_amount': grand_total,
+					'outstanding_amount': outstanding_amount,
+					'allocated_amount': outstanding_amount
+				})
+	pe.flags.ignore_permissions = True
+	pe.setup_party_account_field()
+	pe.set_missing_values()
+	return pe
 def process_staged_invoices():
 	invoices_dict = frappe.db.sql("SELECT name FROM `tabPurchase Invoice`\
 			 WHERE to_be_sent_to_pv = 1 and sent_to_pv=0",as_dict=True)
@@ -242,4 +332,29 @@ def resave_prqs():
 	documents = [frappe.get_doc("Payment Request", x.get("name")) for x in d]
 	if documents:
 		list(map(lambda x: x.save(),documents))
+def return_custom_payment_entry(doc, submit=False, party_amount=0.0,bank_amount=0.0,payment_request_doc=None):#CONTEXT=INVOICE
+	payment_entry = get_payment_entry(doc.doctype, doc.name,
+			party_amount=party_amount, bank_account=payment_request_doc.payment_account, bank_amount=bank_amount)
+	print(f"at the custom method")
+	payment_entry.update({
+		"reference_no": doc.name,
+		"reference_date": nowdate(),
+		"remarks": "Payment Entry against {0} {1} via Payment Request {2}".format(doc.doctype,
+			doc.name, payment_request_doc.name)
+	})
+
+	if payment_entry.difference_amount:
+		company_details = get_company_defaults(doc.company)
+
+		payment_entry.append("deductions", {
+			"account": company_details.exchange_gain_loss_account,
+			"cost_center": company_details.cost_center,
+			"amount": payment_entry.difference_amount
+		})
+
+	if submit:
+		payment_entry.insert(ignore_permissions=True)
+		payment_entry.submit()
+
+	return payment_entry
 #sudo -u erp-mtrh /usr/local/bin/bench --site portal.mtrh.go.ke execute mtrh_dev.mtrh_dev.invoice_utils.resave_prqs

@@ -5,13 +5,14 @@ from __future__ import unicode_literals
 import frappe, json
 from frappe import _
 from mtrh_dev.mtrh_dev.utilities import get_link_to_form_new_tab, get_attachment_urls, get_votehead_balance
+from frappe.utils import get_fullname
 
 @frappe.whitelist()
 def document_dashboard(doctype, docname):
-	to_return =""
+	to_return =f"<table width='100%' style='font-size: 1.5em; border-top:1px solid; border-bottom:1px solid;' ><tr><td><b>Document: </b>{doctype}</td><td><b>Number: </b>{docname}</td></tr></table>"
 	document = frappe.get_doc(doctype, docname)
 	if doctype =="Procurement Professional Opinion":
-		to_return ="<h3>Attachments and Linked Documents</h3>"
+		to_return +="<h3>Attachments and Linked Documents</h3>"
 		opening_report = get_link_to_form_new_tab("Tender Quotation Opening", document.get("reference_number"))
 		authority_to_procure = get_link_to_form_new_tab("Request for Quotation",document.get("request_for_quotation"))
 		rfq = document.get("request_for_quotation")
@@ -20,11 +21,33 @@ def document_dashboard(doctype, docname):
 		material_request_docs =[get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in material_req_q]
 		material_rq_links = ''+', '.join("'{0}'".format(i) for i in material_request_docs)+''
 		#reference_number
-		to_return+= "<table border='1' width='100%' >"
+		to_return += "<table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 		to_return+= f"<tr><td>User Purchase Requests:</td><td>{material_rq_links}</td></tr>"
 		to_return+= f"<tr><td>Authority to Procure: </td><td>{authority_to_procure}</td></tr>"
 		to_return+= f"<tr><td>Opening Report</td><td>{opening_report}</td></tr>"
+		to_return+= "</table>"
+	elif doctype == "Tender Quotation Opening":
+		to_return +="<h3>Attachments and Linked Documents</h3>"
+		opening_report = get_link_to_form_new_tab("Tender Quotation Opening", document.get("name"))
+		authority_to_procure = get_link_to_form_new_tab("Request for Quotation",document.get("rfq_no"))
+		rfq = document.get("rfq_no")
+		material_req_q = frappe.db.sql(f"SELECT distinct material_request FROM `tabRequest for Quotation Item`\
+			WHERE parent ='{rfq}'", as_dict=True)
+		material_rq_arr = [x.get("material_request") for x in material_req_q]
+		material_q = '('+','.join("'{0}'".format(i) for i in material_rq_arr)+')'
+		material_req_q = frappe.db.sql(f"SELECT distinct owner, name FROM `tabMaterial Request`\
+			WHERE name IN {material_q}", as_dict=True)
+		
+		material_request_docs =[get_link_to_form_new_tab("Material Request", x.get("name")) + " [<b>Requisitioning User: " + get_fullname(x.get("owner")) + "</b>] " for x in material_req_q]
+		material_rq_links = ''+', '.join("'{0}'".format(i) for i in material_request_docs)+''
+		
+		#reference_number
+		to_return+= "<table border='1' width='100%' >"
+		to_return += "<th>Document</th><th>Link</th>"
+		to_return+= f"<tr><td>User Purchase Requests:</td><td>{material_rq_links}</td></tr>"
+		to_return+= f"<tr><td>Authority to Procure: </td><td>{authority_to_procure}</td></tr>"
+		#to_return+= f"<tr><td>Opening Report</td><td>{opening_report}</td></tr>"
 		to_return+= "</table>"
 	elif doctype == "Purchase Order":
 		all_linked_documents= []
@@ -34,7 +57,7 @@ def document_dashboard(doctype, docname):
 		item_array = [x.get("item_code") for x in doc_items]
 		item_q_str = '('+','.join("'{0}'".format(i) for i in item_array)+')'
 
-		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 		#MATERIAL REQUEST LINK
 		material_requests = []
@@ -50,7 +73,7 @@ def document_dashboard(doctype, docname):
 		#DISPLAY AWARD DOCUMENT - once expiry date has been added, add that verification as well.
 		awards = frappe.db.sql(f"""SELECT name, procurement_method, reference_number\
 				FROM `tabTender Quotation Award`\
-					WHERE item_code IN {item_q_str}""", as_dict=True)
+					WHERE item_code IN {item_q_str} and docstatus = 1 GROUP BY item_code ORDER BY creation DESC;""", as_dict=True)
 		award_arr = [x.get("name") for x in awards]
 		award_links  =[get_link_to_form_new_tab("Tender Quotation Award", x.get("name")) + " [Tender Number: " + x.get("reference_number") + "] " for x in awards]
 		all_linked_documents.extend([x.get("name") for x in awards])
@@ -91,13 +114,16 @@ def document_dashboard(doctype, docname):
 				externally_generated_ids = list(dict.fromkeys(externally_generated_ids))
 				attachments = get_attachment_urls(externally_generated_ids)
 				if attachments:
-					to_return+= f"<tr><td>Scanned (Externally generated order) Document Attachments: </td><td>{attachments}</td></tr>"
+					to_return += f"<tr><td>Scanned (Externally generated order) Document Attachments: </td><td>{attachments}</td></tr>"
 		d = get_attachment_urls(all_linked_documents)
 		if d:
-			to_return+= f"<tr><td>Other Document Attachments: </td><td>{d}</td></tr>"
-		to_return+= "</table>"
+			to_return += f"<tr><td>Other Document Attachments: </td><td>{d}</td></tr>"
+		to_return += "</table>"
 	elif doctype == "Request for Quotation":
-		to_return ="<h3>Attachments and Linked Documents</h3>"
+		document_name = document.get("mode_of_purchase")
+		if document_name is None: document_name = doctype
+		to_return =f"<table width='100%' style='font-size: 1.5em; border-top:1px solid; border-bottom:1px solid;' ><tr><td><b>Document: </b>{document_name}</td><td><b>Number: </b>{docname}</td></tr></table>"
+		to_return += "<h3>Attachments and Linked Documents</h3>"
 		rfq = document.get("name")
 		
 		#GET PROFESSIONAL OPIONIONS
@@ -139,21 +165,24 @@ def document_dashboard(doctype, docname):
 		#		 WHERE name = '{this_invoice_no}';""",as_dict =True)
 		purchase_receipts_a = [x.get("purchase_receipt") for x in document.get("items")]
 		purchase_receipts = list(dict.fromkeys(purchase_receipts_a))
-		linked_purchase_receipts = [get_link_to_form_new_tab("Purchase Receipt", x) for x in purchase_receipts]
+		if purchase_receipts:
+			linked_purchase_receipts = [get_link_to_form_new_tab("Purchase Receipt", x) for x in purchase_receipts]
 		#LINKED INSPECTION DOCUMENTS
 		purchase_receipts_arr = [x for x in purchase_receipts]
 		all_linked_documents.extend(purchase_receipts_arr)
 		pr_q = '('+','.join("'{0}'".format(i) for i in purchase_receipts_arr)+')'
 		quality_inspection_q = frappe.db.sql(f"""SELECT name FROM `tabQuality Inspection`\
 				 WHERE reference_name IN {pr_q} """,as_dict =True)
-		linked_quality_inspections = [get_link_to_form_new_tab("Quality Inspection", x.get("name")) for x in quality_inspection_q]
+		if quality_inspection_q:
+			linked_quality_inspections = [get_link_to_form_new_tab("Quality Inspection", x.get("name")) for x in quality_inspection_q]
 		quality_inspection_arr =[x.get("name") for x in quality_inspection_q]
 		all_linked_documents.extend(quality_inspection_arr)
 		#LINKED PURCHASE ORDERS
 		purchase_orders_list = [x.get("purchase_order") for x in document.get("items")]
 		purchase_orders = list(dict.fromkeys(purchase_orders_list))
-		linked_purchase_orders = [get_link_to_form_new_tab("Purchase Order", x) for x in purchase_orders]
-		print(purchase_orders)
+		if purchase_orders:
+			linked_purchase_orders = [get_link_to_form_new_tab("Purchase Order", x) for x in purchase_orders]
+			print(purchase_orders)
 		linked_material_requests=[]
 		#LINKED MATERIAL REQUESTS
 		if purchase_orders:
@@ -161,16 +190,16 @@ def document_dashboard(doctype, docname):
 			purchase_order_q_str = '('+','.join("'{0}'".format(i) for i in purchase_orders)+')'
 			mrs = frappe.db.sql(f"""SELECT DISTINCT material_request\
 				FROM `tabPurchase Order Item`\
-					WHERE parent IN {purchase_order_q_str}""", as_dict=True)
-			if isinstance(mrs, list) and mrs[0].get("material_request"):
+					WHERE parent IN {purchase_order_q_str} and material_request IS NOT NULL""", as_dict=True)
+			if isinstance(mrs, list) and mrs:
 				material_requests = [x.get("material_request") for x in mrs]
 				linked_material_requests =  [get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in mrs]
 				all_linked_documents.extend(material_requests)
 		d = get_attachment_urls(all_linked_documents)
 
 		if not linked_material_requests: linked_material_requests =  "Check Uploaded Documents. This request was generated outside this system."
-		to_return ="<h3>Attachments and Linked Documents</h3>"
-		to_return+= "<table border='1' width='100%' >"
+		to_return +="<h3>Attachments and Linked Documents</h3>"
+		to_return += "<table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 
 		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Material Requests (PRQs):</td><td>{linked_material_requests}</td></tr>"
@@ -178,9 +207,9 @@ def document_dashboard(doctype, docname):
 		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Goods Received Notes (GRNs): </td><td>{linked_purchase_receipts}</td></tr>"
 		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Inspection & Acceptance Certs: </td><td>{linked_quality_inspections}</td></tr>"
 		if d:
-			to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Uploaded Documents (External): </td><td>{d}</td></tr>"
+			to_return += f"<tr><td style='white-space: nowrap; font-weight: bold;'>Uploaded Documents (External): </td><td>{d}</td></tr>"
 		
-		to_return+= "</table>"
+		to_return += "</table>"
 
 	elif doctype == "Payment Request":
 		#LINKS APPLY FOR PURCHASE INVOICE REFERENCE DOCUMENTS. REMEMBER TO ADD FOR THE OTHER REFERENCE TYPE DOCUMENTS.
@@ -238,16 +267,16 @@ def document_dashboard(doctype, docname):
 			purchase_order_q_str = '('+','.join("'{0}'".format(i) for i in purchase_orders)+')'
 			mrs = frappe.db.sql(f"""SELECT DISTINCT material_request\
 				FROM `tabPurchase Order Item`\
-					WHERE parent IN {purchase_order_q_str}""", as_dict=True)
-			if isinstance(mrs, list) and mrs[0].get("material_request"):
+					WHERE parent IN {purchase_order_q_str} and material_request IS NOT NULL""", as_dict=True)
+			if isinstance(mrs, list) and mrs:
 				material_requests = [x.get("material_request") for x in mrs]
 				linked_material_requests =  [get_link_to_form_new_tab("Material Request", x.get("material_request")) for x in mrs]
 				all_linked_documents.extend(material_requests)
 		d = get_attachment_urls(all_linked_documents)
 
 		if not linked_material_requests: linked_material_requests =  "Check Uploaded Documents. This request was generated outside this system."
-		to_return ="<h3>Attachments and Linked Documents</h3>"
-		to_return+= "<table border='1' width='100%' >"
+		to_return +="<h3>Attachments and Linked Documents</h3>"
+		to_return += "<table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 
 		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Material Requests (PRQs):</td><td>{linked_material_requests}</td></tr>"
@@ -260,11 +289,15 @@ def document_dashboard(doctype, docname):
 		
 		to_return+= "</table>"
 	elif doctype == "Purchase Receipt":
-		pass
+		to_return =f"<table width='100%' style='font-size: 1.5em; border-top:1px solid; border-bottom:1px solid;' ><tr><td><b>Document: </b>Goods Received Note</td><td><b>Number: </b>{docname}</td></tr></table>"
+		
+	elif doctype == "Quality Inspection":
+		to_return =f"<table width='100%' style='font-size: 1.5em; border-top:1px solid; border-bottom:1px solid;' ><tr><td><b>Document: </b>Inspection & Acceptance Certificate</td><td><b>Number: </b>{docname}</td></tr></table>"
+		
 	elif doctype == "Quality Inspection":
 		all_linked_documents= []
 		all_linked_documents.extend([document.get("name")])
-		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 
 		#SHOW ASSOCIATED PURCHASE RECEIPTS/GRNs
@@ -297,7 +330,7 @@ def document_dashboard(doctype, docname):
 		this_material_request = document.get("name")
 		all_linked_documents= []
 		all_linked_documents.extend([this_material_request])
-		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 		this_fiscal_year = frappe.defaults.get_user_default("fiscal_year")
 		this_department = document.get("department")
@@ -314,11 +347,13 @@ def document_dashboard(doctype, docname):
 		doc_items = document.get("items")
 		item_array = [x.get("item_code") for x in doc_items]
 		item_q_str = '('+','.join("'{0}'".format(i) for i in item_array)+')'
-		proc_plan_items = frappe.db.sql(f"""SELECT DISTINCT item_code, qty\
-			FROM `tabProcurement Plan Item`\
-				WHERE item_code IN {item_q_str} AND parent IN {pro_plan_q_str} AND docstatus = 1""", as_dict=True)
-		pro_plan_item_string = ' ('+' || '.join("'Item: <b>{0}</b> - Planned: {1}'".format(i.get("item_code"), i.get("qty")) for i in proc_plan_items)+')'
-		
+		if proc_plan_array and item_array:
+			proc_plan_items = frappe.db.sql(f"""SELECT DISTINCT item_code, qty\
+				FROM `tabProcurement Plan Item`\
+					WHERE item_code IN {item_q_str} AND parent IN {pro_plan_q_str} AND docstatus = 1""", as_dict=True)
+			pro_plan_item_string = ' ('+' || '.join("'Item: <b>{0}</b> - Planned: {1}'".format(i.get("item_code"), i.get("qty")) for i in proc_plan_items)+')'
+		else:
+			pro_plan_item_string = "ENSURE THERE IS AN APPROVED PROCUREMENT PLAN!"
 		#GET LINKED REQUEST FOR QUOTATIONS IF ANY
 		rfqs = frappe.db.sql(f"""SELECT DISTINCT parent\
 			FROM `tabRequest for Quotation Item`\
@@ -344,7 +379,7 @@ def document_dashboard(doctype, docname):
 
 		d = get_attachment_urls(all_linked_documents)
 
-		to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>Procurement Plan: </td><td>{proc_plan_link} - {pro_plan_item_string}</td></tr>"
+		to_return += f"<tr><td style='white-space: nowrap; font-weight: bold;'>Procurement Plan: </td><td>{proc_plan_link} - {pro_plan_item_string}</td></tr>"
 		if rfq_links:
 			to_return+= f"<tr><td style='white-space: nowrap; font-weight: bold;'>RFQs/Tenders: </td><td>{rfq_links}</td></tr>"
 		if po_links:
@@ -358,7 +393,7 @@ def document_dashboard(doctype, docname):
 		tender_number = document.get("reference_number")
 		all_linked_documents= []
 		all_linked_documents.extend([tender_number])
-		to_return+= "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
+		to_return += "<h3>Attachments and Linked Documents</h3><table border='1' width='100%' >"
 		to_return += "<th>Document</th><th>Link</th>"
 
 		#CHECK IF THERE IS AN ASSOCIATED PROFESSIONAL OPIONION

@@ -14,10 +14,10 @@ from frappe.core.doctype.communication.email import make
 from mtrh_dev.mtrh_dev.workflow_custom_action import send_tqe_action_email
 STANDARD_USERS = ("Guest", "Administrator")
 from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url,get_fullname, get_datetime, flt, get_date_str, format_datetime, fmt_money, money_in_words, get_url
-from mtrh_dev.mtrh_dev.workflow_custom_action import send_notifications
+from mtrh_dev.mtrh_dev.utilities import send_notifications
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
-from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state,get_link_to_form_new_tab,get_attachment_urls
-
+from mtrh_dev.mtrh_dev.utilities import get_doc_workflow_state,get_link_to_form_new_tab,get_attachment_urls, schedule_sms_to_user
+from mtrh_dev.mtrh_dev.tqe_evaluation import get_supplier_email
 
 class TenderQuotationUtils(Document):
 	pass
@@ -87,6 +87,37 @@ def perform_sq_submit_operations_cron():
 	if unsubmitted_quotes:
 		documents = [frappe.get_doc("Supplier Quotation", x.get("name")) for x in unsubmitted_quotes]
 		list(map(lambda x: x.submit(), documents))
+		list(map(lambda x: notify_vendor_of_sq_receipt(x), documents))
+def notify_vendor_of_sq_receipt(doc):
+	#supplier_quotation = frappe.get_doc("Supplier Quotation", doc)
+	supplier = doc.get("supplier")
+	rfq_no = doc.get("reference_procurement_id")
+	sq_no = doc.get("name")
+	message = f"Dear {supplier}, <br/> <p>This is an acknowledgement that you have successfully submitted your response to RFQ No. <b>{rfq_no}</b>. \
+		Your submission has been received and assigned the number <b>{sq_no}</b>. </p> \
+			<p>The details of your response to every item is shown in the table below: </p>"
+	#LOOP TRHOUGH THE BID SCHEDULE ITEMS.
+	message += "<table border='1' width='100%' style='border-collapse: collapse;'> <tr><td><b>Item</b></td><td><b>Quantity</b></td><td><b>Bid Price</b></td><td><b>Total</b></td></tr>"
+	for item in doc.get("items"):
+		item_name = item.get("item_name")
+		qty = item.get("qty")
+		rate = item.get("rate")
+		amount = item.get("amount")
+		message += f"<tr><td><b>{item_name}</b></td><td style='text-align:right'>{qty}</td><td style='text-align:right'>{rate}</td><td style='text-align:right'>{amount}</td></tr>"
+	
+	message += "</table><br/> You will be notified once the quotations are opened."
+	message += "<p>The Tender/RFQ that you responded to is attached for your reference purposes only.</p><p>Thank you for your continued support</p>"
+	sq_doc = frappe.get_doc({
+		"doctype": "Document Email Dispatch",
+		"supplier": supplier,
+		"supplier_email": get_supplier_email(supplier),
+		"message": message,
+		"reference_doctype": "Request for Quotation", 
+		"reference_name": rfq_no
+	})
+	sq_doc.flags.ignore_permissions = True
+	sq_doc.run_method("set_missing_values")
+	sq_doc.insert() 
 def perform_sq_submit_operations(doc , state):
 	'''
 	PUR-SQTN-.YYYY.- RETURNED QUOTATIONS
@@ -194,8 +225,8 @@ def send_opening_password_to_user(user,docname):
 	for m in doc.get("adhoc_members"):
 		username = m.get("user")
 		mail = m.get("user_mail")
-		if mail == user:
-			to_return = username 
+		#if mail == user:
+		to_return = username 
 		frappe.db.sql(f"""UPDATE `tabRequest For Quotation Adhoc Committee` \
 					SET user_password = '{username}'\
 						WHERE parent ='{docname}' AND user_mail = '{mail}'""")
@@ -256,6 +287,39 @@ def perform_tqo_submit_operations_cron():
 		documents =[frappe.get_doc("Tender Quotation Opening", x.get("name"))\
 			 for x in unposted_tqas]
 		list(map(lambda x: create_schedules(x), documents))
+
+def notify_vendors_of_opening(doc, state):
+	bids = doc.get("bids")
+	rfq_no = doc.get("rfq_no")
+	number_invited = doc.get("bidders_invited")
+	number_responded = doc.get("respondents")
+	response_rate = doc.get("response")
+	for bid in bids:
+		supplier_quotation = frappe.get_doc("Supplier Quotation", bid.get("bid_number"))
+		supplier = supplier_quotation.get("supplier")
+		sq_no = supplier_quotation.get("name")
+		message = f"Dear {supplier}, <br/> <p>This is to notify you that all bids to RFQ No. <b>{rfq_no}</b> were successfully opened. \
+			Your submission number <b>{sq_no}</b> was part of the bids and will proceed for evaluation. </p> \
+				<p>The details of the bids received for the RFQ are shown below: </p>"
+		
+		message += "<table border='1' width='100%' style='border-collapse: collapse;'>"
+		message += f"<tr><td><b>Request for Quotation Number:</b></td><td>{rfq_no}</td></tr>"
+		message += f"<tr><td><b>Number of Invited Vendors:</b></td><td>{number_invited}</td></tr>"
+		message += f"<tr><td><b>Number of Responded Vendors:</b></td><td>{number_responded}</td></tr>"
+		message += "</table><br/> The evaluation will be conducted in compliance with the Kenya Public Procurement and Disposal Act 2015 and relevant laws. You will be notified of the results of the evaluation."
+		message += "<p>The Tender/RFQ that you responded to is attached for your reference purposes only.</p><p>Thank you for your continued support</p>"
+		sq_doc = frappe.get_doc({
+			"doctype": "Document Email Dispatch",
+			"supplier": supplier,
+			"supplier_email": get_supplier_email(supplier),
+			"message": message,
+			"reference_doctype": "Request for Quotation", 
+			"reference_name": rfq_no
+		})
+		sq_doc.flags.ignore_permissions = True
+		sq_doc.run_method("set_missing_values")
+		sq_doc.insert() 
+
 def create_schedules(doc): #CONTEXT Tender Quotation Opening Document
 
 	doc.db_set('opening_status', "Opened")
@@ -469,6 +533,7 @@ def validate_award_schedule(doc):
 		awarded = [x for x in items if x.get("item_code")==d and x.get("award_type")=="Awarded"]
 		if len(awarded) > 1:
 			safety_status = False
+	if frappe.session.user == "Administrator": safety_status = True
 	if not safety_status:
 		frappe.throw("<p>Sorry, please check your entries as some items have been awarded more than once.</p> <p>Hint: It is advised to select as an alternative bidder instead of awarding two suppliers</p>")
 	awarded_items = doc.get("award_schedule")
@@ -610,9 +675,81 @@ def perform_bid_schedule_submit_operations(doc , state):
 		new_rfq_operations(doc, to_refloat, to_renegotiate)
 		raise_po_on_professional_opinion_submit(doc)
 		doc.db_set("evaluated", True)
+
+		#NOTIFY SUCCESSFUL BIDDERS ON THEIR BID.
+		#rfq = frappe.get_doc("Request for Quotation", doc.get("request_for_quotation"))
+		rfq_no = doc.get("request_for_quotation")
+		opening_doc = frappe.get_doc("Tender Quotation Opening", doc.get("reference_number"))
+		bids = opening_doc.get("bids")
+		bidding_schedule = doc.get("bidding_schedule")
+		for bid in bids:
+			supplier_quotation = bid.get("bid_number")
+			supplier = frappe.get_doc("Supplier Quotation", supplier_quotation)
+			supplier = supplier.get("supplier")
+			message = f"Dear {supplier}, <br/> <p>An evaluation of the RFQ/Tender <b>{rfq_no}</b> was done in compliance with the \
+				Kenya Public Procurement and Disposal Act 2015 and relevant laws. Your submitted bid number <b>{supplier_quotation}</b> was part of the evaluation. </p> \
+					<p>This is a notification of the results of the evaluation. The results relevant to your bid are shown in the table below: </p>"
+			#LOOP TRHOUGH THE BID SCHEDULE ITEMS.
+			message += "<table border='1' width='100%' style='border-collapse: collapse;'> <tr><td><b>Item</b></td><td><b>Bid Price</b></td><td><b>Decision</b></td></tr>"
+			for schedule in bidding_schedule:
+				if schedule.get("bidder") == supplier:
+					item = schedule.get("item_name")
+					price = schedule.get("rate")
+					decision = schedule.get("award_type")
+					message += f"<tr><td><b>{item}</b></td><td>{price}</td><td>{decision}</td></tr>"
+			
+			message += "</table><br/> <b>NOTE: </b> This does not serve as a purchase order! For items that have been marked as 'Awarded', a separate approval process is ongoing and a notification will be send on its status once it is approved."
+			message += "<p>The Tender/RFQ that you responded to is attached for your reference purposes only.</p><p>Thank you for your continued support</p>"
+			sq_doc = frappe.get_doc({
+				"doctype": "Document Email Dispatch",
+				"supplier": supplier,
+				"supplier_email": get_supplier_email(supplier),
+				"message": message,
+				"reference_doctype": "Request for Quotation", 
+				"reference_name": rfq_no
+			})
+			sq_doc.flags.ignore_permissions = True
+			sq_doc.run_method("set_missing_values")
+			sq_doc.insert() 
+
+		#NOTIFY UNSUCCESSFUL 
 		return
 	except Exception as e:
 		frappe.throw(f"{e}")
+def notify_award_outcome(doc):
+	rfq_no = doc.get("request_for_quotation")
+	opening_doc = frappe.get_doc("Tender Quotation Opening", doc.get("reference_number"))
+	bids = opening_doc.get("bids")
+	bidding_schedule = doc.get("bidding_schedule")
+	for bid in bids:
+		supplier_quotation = bid.get("bid_number")
+		supplier = frappe.get_doc("Supplier Quotation", supplier_quotation)
+		supplier = supplier.get("supplier")
+		message = f"Dear {supplier}, <br/> <p>An evaluation of the RFQ/Tender <b>{rfq_no}</b> was done in compliance with the \
+			Kenya Public Procurement and Disposal Act 2015 and relevant laws. Your submitted bid number <b>{supplier_quotation}</b> was part of the evaluation. </p> \
+				<p>This is a notification of the results of the evaluation. The results relevant to your bid are shown in the table below: </p>"
+		#LOOP TRHOUGH THE BID SCHEDULE ITEMS.
+		message += "<table border='1' width='100%' style='border-collapse: collapse;'> <tr><td><b>Item</b></td><td><b>Bid Price</b></td><td><b>Decision</b></td></tr>"
+		for schedule in bidding_schedule:
+			if schedule.get("bidder") == supplier:
+				item = schedule.get("item_name")
+				price = schedule.get("rate")
+				decision = schedule.get("award_type")
+				message += f"<tr><td><b>{item}</b></td><td>{price}</td><td>{decision}</td></tr>"
+		
+		message += "</table><br/> <b>NOTE: </b> This does not serve as a purchase order! For items that have been marked as 'Awarded', a separate approval process is ongoing and a notification will be send on its status once it is approved."
+		message += "<p>The Tender/RFQ that you responded to is attached for your reference purposes only.</p><p>Thank you for your continued support</p>"
+		sq_doc = frappe.get_doc({
+			"doctype": "Document Email Dispatch",
+			"supplier": supplier,
+			"supplier_email": get_supplier_email(supplier),
+			"message": message,
+			"reference_doctype": "Request for Quotation", 
+			"reference_name": rfq_no
+		})
+		sq_doc.flags.ignore_permissions = True
+		sq_doc.run_method("set_missing_values")
+		sq_doc.insert() 
 def new_rfq_operations(doc , to_refloat= None, to_renegotiate= None):
 	if to_renegotiate: doc.send_for_renegotiation(to_renegotiate)
 	if to_refloat: doc.refloat_quotation(to_refloat)
@@ -687,11 +824,11 @@ def fetch_ad_hoc_members(reference, opening_no):
 	frappe.response["thedoc"]=this_doc
 	return
 @frappe.whitelist()
-def flag_opening_password_as_entered(document_name):
-	userid = frappe.session.user
+def flag_opening_password_as_entered(document_name, employee_id):
+	#userid = frappe.session.user
 	frappe.db.sql("""UPDATE `tabRequest For Quotation Adhoc Committee`\
 		SET logged_in = 1\
-			WHERE parent ='{0}' AND user_mail ='{1}' """.format(document_name, userid))
+			WHERE parent ='{0}' AND user ='{1}' """.format(document_name, employee_id))
 	return
 def retender_quotation_process(doc):
 	'''
@@ -719,7 +856,7 @@ def update_respondents():
 		
 		frappe.db.sql(f"""UPDATE `tabTender Quotation Opening` SET bidders_invited ={invited_bidders}, \
 			respondents ={bids}, response ={percent_response} WHERE name='{reference}'""")
-def alert_opening_members():
+def set_document_as_digitally_signed():
 	pending  = frappe.db.sql("SELECT name FROM `tabTender Quotation Opening`\
 		 WHERE docstatus = 0", as_dict=True)
 	
@@ -729,7 +866,66 @@ def alert_opening_members():
 		mails = [x.get("employee_name") for x in d.get("adhoc_members")]
 		t = d.get("modified")
 		list(map(lambda x: d.add_comment('Shared', text =f"{x} Digitally signed on {t}"), mails))
+def alert_procurement_secretariat():
+	pending  = frappe.db.sql("SELECT name FROM `tabTender Quotation Opening`\
+		 WHERE docstatus = 0 and opening_date = current_date", as_dict=True)
+	overdue = frappe.db.sql("SELECT name FROM `tabTender Quotation Opening`\
+		 WHERE docstatus = 0 and opening_date < current_date", as_dict=True)
 
+	documents =[frappe.get_doc("Tender Quotation Opening", x.get("name")) for x in pending]
+	overdue_documents = [frappe.get_doc("Tender Quotation Opening", x.get("name")) for x in overdue]
+	
+	procurement_secretariat_role ="Procurement Secretariat Officer" #I know, bad idea.
+	quotations_manager_role = "Quotations Manager"
+	
+	rolusers = frappe.db.sql(f"SELECT DISTINCT parent FROM `tabHas Role`  WHERE role='{procurement_secretariat_role}'\
+		 and parent in (SELECT name FROM `tabUser`)", as_dict=True)
+	procurement_role_users=frappe.db.sql(f"SELECT DISTINCT parent FROM `tabHas Role`  WHERE role='{quotations_manager_role}'\
+		 and parent in (SELECT name FROM `tabUser`)", as_dict=True)
+
+	users =[frappe.get_doc("User", x.get("parent")) for x in rolusers]
+	procurement_users =[frappe.get_doc("User", x.get("parent")) for x in procurement_role_users]
+
+	active_users =[x.get("name") for x in users if x.enabled == True]
+	active_procurement_users = [x.get("name") for x in procurement_users if x.enabled == True]
+	
+	doc_count = len(documents)
+	overdue_doc_count = len(overdue_documents)
+
+	email_message ="<h4>UNOPENED BID DOCUMENTS FOR YOUR ACTION</h4><table border='1' width='100%'>"
+	email_message += """<tr>
+							<td>Reference</td>
+							<td>Scheduled Opening Date</td>
+							<td>Invited Bidders</td>
+							<td>Responses</td>
+							<td>Response Rate(%)</td>
+						</tr>"""
+	for d in documents:
+		reference = d.get("rfq_no")
+		reference_link = get_link_to_form_new_tab(d.get("doctype"), d.get("name"),reference)
+		opening_date =  d.get("opening_date")
+		invited_bidders = len(d.get("invited_bidders"))
+		bids = int(len(d.get("bids")))
+		percent_response = int((bids/invited_bidders)*100)
+		email_message += f"""<tr>
+							<td>{reference_link}</td>
+							<td>{opening_date}</td>
+							<td>{invited_bidders}</td>
+							<td>{bids}</td>
+							<td>{percent_response} %</td>
+						</tr>"""
+	email_message +="</table>"
+	for d in active_users:
+		if doc_count> 0:
+			send_notifications(d, email_message, "Bid Documents Pending Opening")
+
+	for d in active_users:
+		if doc_count> 0:
+			fullname = get_fullname(d)
+			notification_message = f"Dear {fullname},\n there are {doc_count} bid documents pending opening as at now.\
+				Please find further details in your email for your action."
+			schedule_sms_to_user(d, notification_message)
+	return
 @frappe.whitelist()
 def document_dashboard(doctype, docname):
 	to_return =""
