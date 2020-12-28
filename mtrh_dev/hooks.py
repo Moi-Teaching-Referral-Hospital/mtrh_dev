@@ -61,8 +61,8 @@ app_include_js = ["/assets/mtrh_dev/js/utilities.js"]
 #			"UOM","Item Group","Supplier"]
 #,"Tender Number","Tender Quotation Award",{"dt":"Item","filters":{"creation":[">","2020-05-26"],"disabled":"0"}}
 #fixtures =["Email Account"]
-fixtures =["Naming Series", "Role", "Role Profile", "Workflow","Custom Script","Server Script",'Workflow State','Workflow Action Master']
-
+#fixtures =["Naming Series", "Role", "Role Profile", "Workflow","Custom Script","Server Script",'Workflow State','Workflow Action Master']
+fixtures =["Desk Page"]
 default_mail_footer = "MTRH Enterprise System"
 # Installation
 # ------------
@@ -263,7 +263,35 @@ doc_events = {
 
 scheduler_events = {
 	"cron": {
-		
+		"* * * * *": [
+			"frappe.email.queue.flush",
+			"frappe.email.doctype.email_account.email_account.pull",
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.update_respondents",
+			"mtrh_dev.mtrh_dev.utilities.send_scheduled_sms_cron",
+			"mtrh_dev.mtrh_dev.utilities.queue_bulk_sms_docs_cron",
+			"mtrh_dev.mtrh_dev.tasks.task_assignment_cron",
+			"mtrh_dev.mtrh_dev.invoice_utils.invoice_submit_operations_cron"
+		],
+		"*/15 * * * *": [
+			"mtrh_dev.mtrh_dev.purchase_receipt_utils.delivery_completed_status_cron",
+			"mtrh_dev.mtrh_dev.purchase_receipt_utils.complete_closed_mr",
+			"mtrh_dev.mtrh_dev.workflow_custom_action.process_pending_material_requests",
+			"mtrh_dev.mtrh_dev.tqe_evaluation.dispatch_staged_email_cron",
+			"mtrh_dev.mtrh_dev.tqe_evaluation.update_prequalification_list_cron",
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_sq_submit_operations_cron",
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.perform_tqo_submit_operations_cron",
+			"mtrh_dev.mtrh_dev.invoice_utils.process_staged_invoices",
+			"mtrh_dev.mtrh_dev.invoice_utils.payment_request_submit_operations"
+		],
+		"30 10,14 * * 1-5": [
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.alert_procurement_secretariat"
+		],
+		"5 * * * *": [
+			"mtrh_dev.mtrh_dev.tender_quotation_utils.professional_opinion_to_award_cron"
+		],
+		"0 0 * * *":[
+			"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.expired_tenders_cron"
+		]
 	},
 	"all": [
 		#"mtrh_dev.mtrh_dev.utilities.daily_pending_work_reminder"
