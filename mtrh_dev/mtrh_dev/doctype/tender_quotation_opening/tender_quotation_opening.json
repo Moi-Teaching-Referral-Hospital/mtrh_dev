@@ -198,15 +198,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Tender Quotation Evaluation",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
    "fieldname": "opening_terms",
    "fieldtype": "HTML",
    "label": "Terms",
