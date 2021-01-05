@@ -1016,7 +1016,9 @@ def return_budget_dict(dimension,dimension_name,account):
 	pl = run(report_name, filters, user="Administrator")
 	#need = []
 	#if pl.get('result') and pl.get('result')[0]:
-	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
+	filtered_pl = pl.get('result')
+	filtered_pl.pop()
+	need  = [b for b in filtered_pl if b.get("Account") == account] #[[...]]
 	from datetime import datetime
 	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
 	this_month = datetime.today().month
@@ -1034,7 +1036,8 @@ def return_budget_dict(dimension,dimension_name,account):
 		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 14, 15, 16, 17
 	data_to_return = {}
 	if need and need[0]:
-		single_row = need[0]
+		single_row = list(need[0].values())
+
 		data_to_return['q_budget'] = single_row[quarter_budget]
 		data_to_return['q_actual'] = single_row[quarter_actual]
 		data_to_return['q_commit'] = single_row[quarter_commit]
@@ -1791,3 +1794,9 @@ def compute_mr_totals(doc):
 	doc.total_request_value = amount
 	doc.grand_total = amount
 	return doc
+def create_leave_allocation_cron():
+    la = frappe.db.sql(f"""SELECT name FROM `tabLeave Rota` WHERE\
+        evaluated = false and docstatus=true LIMIT 2""", as_dict=True)
+    if la:
+        approved_leaves = [frappe.get_doc("Leave Rota",x.get("name")) for x in la]
+        list(map(lambda x: x.create_leave_allocations(), approved_leaves))
