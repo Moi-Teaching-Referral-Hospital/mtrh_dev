@@ -206,6 +206,7 @@
   {
    "fieldname": "opening_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Opening Date",
    "read_only": 1
   },
@@ -307,7 +308,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-11-02 10:50:49.687131",
+ "modified": "2021-01-08 15:10:56.328504",
  "modified_by": "Administrator",
  "module": "MTRH Dev",
  "name": "Tender Quotation Opening",

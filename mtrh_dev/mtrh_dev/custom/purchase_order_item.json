@@ -40,6 +40,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-item",
    "no_copy": 0,
+   "non_negative": 0,
    "options": "Item",
    "owner": "Administrator",
    "parent": null,
@@ -101,6 +102,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-department",
    "no_copy": 0,
+   "non_negative": 0,
    "options": "Department",
    "owner": "Administrator",
    "parent": null,
@@ -162,6 +164,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-externally_generated_order",
    "no_copy": 0,
+   "non_negative": 0,
    "options": "Externally Generated Purchase Order",
    "owner": "Administrator",
    "parent": null,
@@ -223,6 +226,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-gst_hsn_code",
    "no_copy": 0,
+   "non_negative": 0,
    "options": null,
    "owner": "Administrator",
    "parent": null,
@@ -284,6 +288,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-is_nil_exempt",
    "no_copy": 0,
+   "non_negative": 0,
    "options": null,
    "owner": "Administrator",
    "parent": null,
@@ -345,6 +350,7 @@
    "modified_by": "Administrator",
    "name": "Purchase Order Item-is_non_gst",
    "no_copy": 0,
+   "non_negative": 0,
    "options": null,
    "owner": "Administrator",
    "parent": null,
@@ -391,6 +397,7 @@
    "parenttype": null,
    "property": "read_only",
    "property_type": "Check",
+   "row_name": null,
    "value": "1"
   },
   {
@@ -414,6 +421,7 @@
    "parenttype": null,
    "property": "print_width",
    "property_type": "Data",
+   "row_name": null,
    "value": "3"
   },
   {
@@ -437,6 +445,7 @@
    "parenttype": null,
    "property": "report_hide",
    "property_type": "Check",
+   "row_name": null,
    "value": "1"
   },
   {
@@ -460,6 +469,7 @@
    "parenttype": null,
    "property": "in_list_view",
    "property_type": "Check",
+   "row_name": null,
    "value": "0"
   },
   {
@@ -483,6 +493,7 @@
    "parenttype": null,
    "property": "in_list_view",
    "property_type": "Check",
+   "row_name": null,
    "value": "0"
   }
  ],

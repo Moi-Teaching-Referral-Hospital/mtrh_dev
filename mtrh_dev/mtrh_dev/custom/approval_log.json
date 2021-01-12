@@ -40,6 +40,7 @@
    "modified_by": "Administrator",
    "name": "Approval Log-designation",
    "no_copy": 0,
+   "non_negative": 0,
    "options": "",
    "owner": "Administrator",
    "parent": null,
@@ -86,6 +87,7 @@
    "parenttype": null,
    "property": "print_width",
    "property_type": "Data",
+   "row_name": null,
    "value": "60"
   },
   {
@@ -109,6 +111,7 @@
    "parenttype": null,
    "property": "quick_entry",
    "property_type": "Check",
+   "row_name": null,
    "value": "0"
   },
   {
@@ -132,6 +135,7 @@
    "parenttype": null,
    "property": "track_changes",
    "property_type": "Check",
+   "row_name": null,
    "value": "0"
   }
  ],

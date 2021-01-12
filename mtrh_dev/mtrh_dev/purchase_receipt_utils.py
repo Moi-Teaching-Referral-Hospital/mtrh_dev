@@ -103,6 +103,7 @@ def update_percentage_inspected(doc, state):
 def delivery_completed_status_shorthand(docname):	
 	doc = frappe.get_doc("Quality Inspection", docname)
 	frappe.response["id"]=docname
+	update_percentage_inspected(doc, "Submitted")
 	delivery_completed_status(doc,"Submitted")
 def delivery_completed_status_cron():
 	print("Starting cron")
@@ -117,7 +118,7 @@ def delivery_completed_status_cron():
 	process_qi(unalerted_grns)
 	return
 @frappe.whitelist()
-def delivery_completed_status(doc , state):
+def delivery_completed_status(doc , state): 
 	unalerted_grns = frappe.db.get_all('Purchase Receipt',
 						filters={
 							'percentage_inspected': [">",99.99],
@@ -145,7 +146,7 @@ def process_qi(unalerted_grns):
 	for grn in unalerted_grns:
 		docname = grn.name
 		grn = update_posting_date_and_time(grn)
-		supplier_ref = grn.get("supplier_delivery")
+		supplier_ref = grn.get("supplier_delivery_note")
 		frappe.response["grn"]=docname
 		#purchase_receipt_document = frappe.db.get_doc("Purchase Receipt",docname)
 		purchase_receipt_dict = frappe.db.get_value("Purchase Receipt",docname,['supplier','owner'],as_dict=1)
@@ -156,7 +157,7 @@ def process_qi(unalerted_grns):
 		recipient = email #purchase_receipt_dict.owner
 		#supplier = purchase_receipt_dict.supplier
 		message ="Dear {0}\
-			 This is to let you know that goods/services as per your delivery note {1}\
+			 This is to let you know that goods/services as per your delivery note <b><u>{1} </u></b>\
 				  have been successfully inspected. Please invoice as per attached copy of GRN/Certificate document. If you have already submitted an invoice, no further action is needed at this point.".format(supplier, supplier_ref)
 		#GET ALL INSPECTION DOCUMENTS
 		inspection_documents  = frappe.db.get_all('Quality Inspection',
@@ -240,6 +241,7 @@ def recall_quality_inspection_item(doc , state):
 		return
 	else:
 		this_doc_workflow_state = get_doc_workflow_state(doc)
+		#frappe.msgprint(f"State: {this_doc_workflow_state}")
 		if	this_doc_workflow_state =="Reversed":
 			pr_name = doc.get("reference_name")
 			item_code = doc.get("item_code")
@@ -248,14 +250,23 @@ def recall_quality_inspection_item(doc , state):
 				item_row_id = frappe.db.sql(f"""SELECT name FROM `tabPurchase Receipt Item`\
 					WHERE parent ='{pr_name}' AND item_code ='{item_code}' """)[0][0]
 				row_doc = frappe.get_doc("Purchase Receipt Item", item_row_id)
+				#frappe.msgprint(f"rowID: {item_row_id} and row_doc")
 				row_doc.flags.ignore_permissions = True
 				row_doc.delete()
+
+				#WE RE-UPDATE THE PERCENTAGE OF GOODS INSPECTED.
+				update_percentage_inspected(doc, "Submitted")
+
+				#RE-UPDATE THE PURCHASE RECEIPT. WE MAY NEED TO RELOOK WHETHER THE TOTALS ARE UPDATED APPROPRIATELY.
 				purchase_receipt.flags.ignore_permissions = True
 				purchase_receipt.run_method("set_missing_values")
 				purchase_receipt.save()
+				purchase_receipt.reload()
 				purchase_receipt.notify_update()
-				doc.flags.ignore_permissions = True
-				doc.delete() #DELETE THIS INSPECTION DOCUMENT
+
+				frappe.msgprint(f"The item has been reversed and the related GRN: {pr_name} has been updated appropriately.")
+				#doc.flags.ignore_permissions = True
+				#doc.delete() #DELETE THIS INSPECTION DOCUMENT
 				#frappe.set_route("List", "Quality Inspection",{"reference_name": pr_name})
 		elif this_doc_workflow_state =="Cancelled":
 			pass

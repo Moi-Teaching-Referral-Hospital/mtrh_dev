@@ -280,8 +280,11 @@ def append_invoice_to_pe(pe_no, invoice_number):
 	pe,pi = frappe.get_doc("Payment Entry", pe_no), frappe.get_doc("Purchase Invoice", invoice_number)
 	print("exists, so will work with", pe) 
 	grand_total = pi.base_rounded_total or pi.base_grand_total
+	grand_total = flt(grand_total)
+	new_payment = flt(pe.get("paid_to"))
+	new_total = new_payment + grand_total
 	#WE NEED TO RECALCULATE THE TOTAL AMOUNT ALLOCATED TO THE PAYMENT
-	pe.set("paid_amount" , pe.get("paid_to") + grand_total)
+	pe.set("paid_amount" , new_total)
 	outstanding_amount = pi.outstanding_amount
 	pe.append("references", {
 					'reference_doctype': "Purchase Invoice",

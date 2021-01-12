@@ -17,6 +17,7 @@ from frappe.core.doctype.user_permission.user_permission import clear_user_permi
 from frappe.core.doctype.user.user import extract_mentions
 from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification, get_title, get_title_html
 from frappe.utils.background_jobs import enqueue
+from frappe.utils import nowdate, getdate, add_days, add_years, cstr, get_url, get_datetime
 
 @frappe.whitelist()
 def attach_file_to_doc(filedata, doc_type, doc_name, file_name):
@@ -768,12 +769,14 @@ def return_approval_routes(department):
 def assign_department_permissions(doc,state):
 	userid = doc.get("user_id")
 	department = doc.get("department")
+	employee_number = doc.get("employee_number")
 	'''if not frappe.db.exists({"doctype":"User Permission",
 							"user":userid,
 							"allow":"Department",
 							"for_value":department}):'''
 	clear_user_permissions(userid,"Department")
 	clear_user_permissions(userid,"Leave Rota")
+	clear_user_permissions(userid,"Leave Application")
 	#frappe.get_doc()
 	fullname = doc.get("employee_name")
 	if department:
@@ -794,6 +797,15 @@ def assign_department_permissions(doc,state):
 				apply_to_all_doctypes=0,
 				applicable_for="Leave Rota"
 			)).insert(ignore_permissions=True)
+			if not is_manager(): 
+				frappe.get_doc(dict(
+					doctype='User Permission',
+					user=employee_number,
+					allow="Employee",
+					for_value=userid,
+					apply_to_all_doctypes=0,
+					applicable_for="Leave Application"
+				)).insert(ignore_permissions=True)
 			frappe.msgprint("User {0} - {1} has been assigned to {2}".format(userid, fullname, department))
 
 			#THERE IS A FRAPPE ERROR WHERE USERS ASSIGNED TO TREE CAN'T SEE IMMEDIATE CHILD DEPARTMENTS.
@@ -819,7 +831,14 @@ def assign_department_permissions(doc,state):
 		else:
 			frappe.msgprint("Department permissions have not been applied since the user does not have a log in account.")
 	else:
-		frappe.throw("Please ensure that user has log in credentials and is allocated to a department")
+		return
+		#frappe.throw("Please ensure that user has log in credentials and is allocated to a department")
+def is_manager(user = None):
+	if not user: user = frappe.session.user
+	return "Chief Executive Officer" in frappe.get_roles(user)\
+		 or "Head of Department" in frappe.get_roles(user)\
+			 or "Head of Directorate" in frappe.get_roles(user)\
+				 or "Senior Director" in frappe.get_roles(user)
 def process_comment(doc,state):
 	if doc.reference_doctype and doc.reference_name and doc.content:
 		sender_fullname = get_fullname(frappe.session.user)
@@ -1079,8 +1098,12 @@ def return_budget_all_dict(account):
 		"company":frappe.defaults.get_user_default("Company"),
 		"budget_against": "Department"
 		}
+	
 	pl = run(report_name, filters, user="Administrator")
-	need  = [b for b in pl.get('result') if b[1]==account] #[[...]]
+	filtered_pl = pl.get('result')
+	filtered_pl.pop()
+	need  = [b for b in filtered_pl if b.get("Account") == account] #[[...]]
+	#need  = [b for b in pl.get('result') if b[1]==account] #[[...]]old
 	from datetime import datetime
 	year_start_month = datetime.strptime(frappe.defaults.get_user_default("year_start_date"), "%Y-%m-%d").month
 	this_month = datetime.today().month
@@ -1098,7 +1121,7 @@ def return_budget_all_dict(account):
 		quarter_budget, quarter_actual, quarter_commit, quarter_balance = 14, 15, 16, 17
 	data_to_return = {}
 	if need and need[0]:
-		single_row = need[0]
+		single_row = list(need[0].values())#need[0]
 		data_to_return['q_budget'] = single_row[quarter_budget]
 		data_to_return['q_actual'] = single_row[quarter_actual]
 		data_to_return['q_commit'] = single_row[quarter_commit]
@@ -1522,6 +1545,10 @@ def enforce_unique_item_name(doc, state):
 			frappe.throw(f"Sorry {item_name} already exists!")
 	return
 def append_attachments_to_file(doc, state):
+	#thedoctype = doc.get("doctype")
+	#frappe.msgprint(f"Doctype to save file - {thedoctype}")
+	if doc.get("doctype") in ["Email Account", "Email Queue", "File", "DefaultValue", "User", "Comment", "Version", "DocShare", "Error Log"]:
+		return
 	meta  = meta = frappe.get_meta(doc.get("doctype"))
 	fieldnames =[x.get("fieldname") for x in meta.get("fields") \
 		 if x.get("fieldtype") in ["Attach","Attach Image"]]
@@ -1795,8 +1822,182 @@ def compute_mr_totals(doc):
 	doc.grand_total = amount
 	return doc
 def create_leave_allocation_cron():
-    la = frappe.db.sql(f"""SELECT name FROM `tabLeave Rota` WHERE\
-        evaluated = false and docstatus=true LIMIT 2""", as_dict=True)
+    la = frappe.db.sql(f"""SELECT DISTINCT parent FROM `tabLeave Rota Employee`\
+		 WHERE employee NOT IN (SELECT employee FROM `tabLeave Allocation`)\
+		 AND docstatus=true LIMIT 2""", as_dict=True)
     if la:
-        approved_leaves = [frappe.get_doc("Leave Rota",x.get("name")) for x in la]
+        approved_leaves = [frappe.get_doc("Leave Rota",x.get("parent")) for x in la]
         list(map(lambda x: x.create_leave_allocations(), approved_leaves))
+@frappe.whitelist()
+def get_unutilized_leaves(employee=None):
+	#if frappe.session.user =="Administrator": return
+	if not employee: return
+	unapplied_leaves = frappe.db.sql(f"""SELECT name, leave_type, allocated_days,\
+		 from_date, to_date FROM `tabLeave Allocation`\
+			 WHERE employee ='{employee}' AND applied = false""", as_dict =True)
+	return [x.get("name") for x in unapplied_leaves]
+def mark_leave_allocation(doc, state):
+	if not doc.get("active_leave_rota"): return
+	linked_allocation = doc.get("active_leave_rota")
+	if state == "after_insert":
+		linked_allocation.db_set("applied", True)
+	if state in ["before_submit", "on_submit"]:
+		linked_allocation.db_set("utilized",True)
+		linked_allocation.db_set("applied", True)
+def set_leave_to_date(doc,state):
+	days = doc.number_of_days
+	
+	#===================
+	date_format ="%Y-%m-%d"
+	from datetime import datetime
+	applicant_commencement = datetime.strptime(str(doc.from_date), date_format)
+	from_date = applicant_commencement.date()
+	#===================
+	employee = doc.employee
+	holiday_list = frappe.get_value("Employee", employee,'holiday_list')
+	#if state =="before_save":
+	doc.set("to_date", date_by_adding_business_days(from_date, days, holiday_list))
+	doc.set("total_leave_days",days)
+
+	#SET THE LEAVE ALLOCATION FOR THIS LEAVE APPLICATION.
+	leave_allocations = frappe.db.get_all('Leave Allocation', 
+		filters = { 
+			'from_date': ('<=', from_date),
+			'to_date': ('>=', from_date),
+			'employee': employee,
+			'leave_type': doc.get("leave_type"),
+		},
+		fields = ["name", "reliever", "reliever_name", "allocated_days", "from_date", "to_date"]
+	)
+	if leave_allocations and leave_allocations[0]:
+		#applicable_leave_allocation = frappe.get_doc("Leave Allocation", leave_allocations[0].get("name"))
+		doc.set("active_leave_rota", leave_allocations[0].get("name"))
+		doc.set("reliever", leave_allocations[0].get("reliever"))
+		doc.set("reliever_name", leave_allocations[0].get("reliever_name"))
+		doc.set("allocated_days", leave_allocations[0].get("allocated_days"))
+		doc.set("allocated_from_date", leave_allocations[0].get("from_date"))
+		doc.set("allocated_to_date", leave_allocations[0].get("to_date"))
+	
+	#ASSIGN THE DOCUMENT TO THE NEXT PERSON IN THE WORKFLOW
+	user = doc.leave_approver if "Supervisor" in doc.get("workflow_state") else  doc.final_approver
+	if "Supervisor" in doc.get("workflow_state") or "Final" in doc.get("workflow_state"):
+		if "Final" in doc.get("workflow_state"):
+			from erpnext.hr.doctype.leave_application.leave_application import get_leave_approver
+			user = get_leave_approver(employee)
+		share_and_assign_workflow_action(doc , user)
+	else:
+		user = doc.leave_approver if "Department" in doc.get("workflow_state") else  doc.final_approver
+		doc.flags.ignore_permissions = True
+		docname = doc.name
+		frappe.db.sql(f"""delete from `tabDocShare` WHERE share_name='{docname}' and name !='';""")
+		#frappe.share.remove(doc.get("doctype"), doc.get("name"), user, ignore_permissions=True)
+	
+	#IF THE PERSON THE DOCUMENT IS SHARED WITH HAS ROLE OF CEO, FLAG OFF THE DOCUMENT SO THAT IT BYPASSES THE HOD AND GOES TO HR.
+
+def date_by_adding_business_days(from_date, add_days, holiday_list = None):
+	import datetime
+	if add_days < 1:
+		frappe.throw("Sorry non-zero days not allowed")
+	business_days_to_add = add_days
+	current_date = from_date
+	while business_days_to_add > 0:
+		current_date += datetime.timedelta(days=1)
+		weekday = current_date.weekday()
+		if weekday >= 5: # sunday = 6
+			continue
+		business_days_to_add -= 1
+	current_date -= datetime.timedelta(days=1)
+	#ADD HOLIDAY
+	if holiday_list:
+		holiday_doc = frappe.get_doc("Holiday List", holiday_list)
+		holidays = [x for x in holiday_doc.get("holidays")]
+		count = 0
+		for x in holidays:
+			if from_date <= x.get("holiday_date") <= current_date:	
+				count += 1 	
+		if count > 0:
+			current_date += datetime.timedelta(days=count)
+	return current_date
+def share_and_assign_workflow_action(doc, user):
+	from frappe.workflow.doctype.workflow_action.workflow_action import create_workflow_actions_for_users
+	#frappe.msgprint(f"Applying permissions for {user}")
+	workflow_state = doc.get("workflow_state")
+
+	frappe.share.add(doc.get('doctype'), doc.get('name'),\
+			user = user, read = 1, write = 1)
+	create_workflow_actions_for_users([user],doc)
+def apply_global_permissions():
+	users =frappe.db.sql(f"""SELECT DISTINCT name FROM `tabEmployee`\
+		 WHERE user_id IS NOT NULL""", as_dict=True)
+	d = [x.get("name") for x in users]
+	if d:
+		documents =[frappe.get_doc("Employee", x) for x in d]
+		list(map(lambda x: x.save(ignore_permissions=True), documents))
+def set_po_requires_aie_holder_approval(doc, state):
+	department = doc.get("items")[0].department
+	if department:
+		doc.set("requires_aie_holder_approval",\
+			 frappe.get_doc("Department",department).get("purchase_order_requires_hod_approval"))
+@frappe.whitelist()
+def apply_for_unscheduled_leave(employee, leavetype, net_leave_days, commencement_date, reliever, supervisor =None):
+	#CREATE LEAVE ALLOCATION AND SUBMIT IT
+	#if frappe.session.user == "Administrator": frappe.throw("Only employee role is permitted to apply for leave")
+	ends = None
+	if frappe.get_value("Leave Type",leavetype,"include_holiday"):
+		ends = add_days(commencement_date, int(net_leave_days))
+		frappe.msgprint(f"""{commencement_date} {ends}""")
+	if not ends: frappe.throw("Only permitted for un-scheduled leaves")
+	e = frappe.db.get_value("Employee",employee,\
+		["name","department","employee_name"])
+	employee, department,employee_name =e[0],e[1], e[2]
+	lv_doc = frappe.get_doc({
+		"doctype": "Leave Allocation",
+		"leave_type": leavetype,
+		"employee": employee,
+		"from_date": commencement_date,
+		"to_date": ends,
+		"carry_forward": 0,
+		"allocated_days": net_leave_days or 0,
+		"reliever": reliever,
+		"new_leaves_allocated":net_leave_days or 0,
+		"total_leaves_allocated": net_leave_days or 0,
+		"reliever_is_mandatory": frappe.db.get_value("Department",\
+			department,"requires_reliever"),
+		})
+	lv_doc.flags.ignore_permissions = True
+	lv_doc.run_method("set_missing_values")
+	lv_doc.insert()
+	lv_doc.submit()
+	#CREATE LEAVE APPLICATION DRAFT
+	# RETURN DOCUMENT FOR Routing
+	if lv_doc.name:
+		if not supervisor: supervisor = reliever
+		lv_app = frappe.get_doc({
+			"doctype": "Leave Application",
+			"leave_type": leavetype,
+			"employee": employee,
+			"employee_name": employee_name,
+			"department": department,
+			"from_date": commencement_date,
+			"to_date": ends,
+			"allocated_days": net_leave_days or 0,
+			"total_leave_days": net_leave_days or 0,
+			"number_of_days": net_leave_days or 0,
+			"reliever": reliever,
+			"immediate_supervisor":supervisor
+			})
+		lv_app.flags.ignore_permissions = True
+		lv_app.run_method("set_missing_values")
+		lv_app.insert()
+	return lv_app.name
+def remove_employee_rights_for_managers():
+	employee_users = frappe.db.sql(f"""SELECT name, user_id FROM `tabEmployee`\
+		 WHERE user_id IS NOT NULL""", as_dict =True)
+	users =[x.get("user_id") for x in employee_users]
+	managers =[x for x in users if is_manager(x)]
+	remove_employee_permission(managers)
+def remove_employee_permission(users):
+	users_str = '('+','.join("'{0}'".format(i) for i in users)+')'
+	print(managers_str)
+	frappe.db.sql(f"""DELETE FROM `tabUser Permission`\
+		 WHERE applicable_for='Leave Application' AND user IN {users_str} """)

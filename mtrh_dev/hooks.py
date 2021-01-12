@@ -115,7 +115,8 @@ doc_events = {
 		"before_save":"mtrh_dev.mtrh_dev.utilities.validate_procurement_plan_exists"
 	},
 	("Purchase Order", "Material Request"):{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.validate_budget_exists", "mtrh_dev.mtrh_dev.utilities.cleanup_item_idx"]
+		"before_save":["mtrh_dev.mtrh_dev.utilities.validate_budget_exists", 
+		"mtrh_dev.mtrh_dev.utilities.cleanup_item_idx","mtrh_dev.mtrh_dev.utilities.set_po_requires_aie_holder_approval"]
 	},
 	"Material Request":{
 		"before_save":["mtrh_dev.mtrh_dev.stock_utils.validate_material_request"],		
@@ -140,7 +141,8 @@ doc_events = {
 		"before_submit":"mtrh_dev.mtrh_dev.doctype.tender_quotation_award.tender_quotation_award.update_price_list"
 	},
 	"Purchase Receipt":{
-		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt"]
+		"before_save":["mtrh_dev.mtrh_dev.utilities.check_purchase_receipt_before_save", "mtrh_dev.mtrh_dev.utilities.cleanup_item_idx",
+		"mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_purchase_receipt"]
 	},
 	"Quality Inspection":{
 		"before_save":["mtrh_dev.mtrh_dev.purchase_receipt_utils.recall_quality_inspection_item"],
@@ -237,7 +239,13 @@ doc_events = {
 	},
 	"ToDo":{
 		"after_insert":"mtrh_dev.mtrh_dev.tasks.append_task_assignment"
+	},
+	"Leave Application":{
+		"before_save": ["mtrh_dev.mtrh_dev.utilities.set_leave_to_date"],
+		"after_insert":"mtrh_dev.mtrh_dev.utilities.mark_leave_allocation",
+		"on_submit":"mtrh_dev.mtrh_dev.utilities.mark_leave_allocation"
 	}
+
 
 }
 

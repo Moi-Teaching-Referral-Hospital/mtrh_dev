@@ -11,7 +11,7 @@ class TenderNumber(Document):
 	def before_save(self):
 		valid_extension = self.validate_extension()
 		#if valid_extension:
-		self.extend_awards(valid)
+		self.extend_awards(valid_extension)
 	def validate_extension(self):
 		valid = True
 		today = frappe.utils.nowdate()

@@ -58,6 +58,7 @@ def create_tq_opening_doc(doc, state):
 				"rfq_no": rfq,
 				"procurement_method": procurement_method,
 				"opening_date": opening_date,
+				"time_of_opening": "10:00:00",
 				"respondents": count_supplier_quotations, 
 				"bids":bid
 			})
@@ -453,6 +454,7 @@ def append_bid_schedule_items(bid_numbers , bid_doc):
 		#child = frappe.new_doc("Procurement Professional Opinion Item")
 		for d in supplier_items:
 			bid_doc.append("bidding_schedule",{
+				"idx": d.get("idx"),
 				"item_code": d.get("item_code"),
 				"item_name": d.get("item_name"),
 				"description": d.get("description"),
@@ -772,6 +774,27 @@ def perform_tqo_submit_operations(doc, state):
 		count = len(bids_so_far)
 		if count < 1 or adhoc < 1:
 			frappe.throw("Sorry you cannot proceed without entered bids or adhoc members")
+		
+		#FINALLY CHECK IF THE DATE OF OPENING IS PAST DUE OR 100% RESPONSE RATE HAS BEEN ACHIEVED.
+		from datetime import datetime
+		opt = doc.get("time_of_opening")
+		opd = doc.get("opening_date")
+		
+		if isinstance(opt, str):
+			time_object = datetime.strptime(opt, '%H:%M:%S').time()
+		else:
+			time_object = (datetime.min + opt).time()
+		
+		if isinstance(opd, str):
+			date_object = datetime.strptime(opd, '%Y-%m-%d')
+		else:
+			date_object = opd
+
+		combined_datetime = datetime.combine(date_object, time_object)
+		if combined_datetime > datetime.now() and doc.get("response") < 100:
+			frappe.throw("Sorry, you are not allowed to open bids before the set opening date and time. \
+				Once all invited vendors respond, you can proceed to open before the set opening date")
+
 		frappe.msgprint("{0} bids opened successfully".format(count),"Bids opened")
 	else:
 		frappe.throw("Sorry,You cannot proceed without the Opening minutes, all e-signatures\
